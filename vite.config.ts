@@ -14,6 +14,9 @@ import dts from 'vite-plugin-dts';
 // Peers provided by the host — must stay `external` (kept out of dist).
 const EXTERNAL = [
   '@c4s/plugin-runtime',
+  // Host UI Kit subpath — a distinct module id to Rollup, so it must be listed
+  // separately from '@c4s/plugin-runtime' to keep the host UI out of dist.
+  '@c4s/plugin-runtime/ui',
   '@inharness-ai/agent-adapters',
   'react',
   'react-dom',

@@ -20,6 +20,7 @@
  *   - src/server/serialization/types.ts         (EntitySerializer, RestoreResult, EntityDiff)
  *   - src/client/core/plugin-host/types.ts      (FrontendModule, Entity*Props, SidebarTabSlot)
  *   - src/client/runtime/plugin-runtime.ts      (frontend runtime exports)
+ *   - src/client/host-ui-kit/*                  (Host UI Kit components + props, `@c4s/plugin-runtime/ui`)
  */
 
 declare module '@c4s/plugin-runtime' {
@@ -246,6 +247,60 @@ declare module '@c4s/plugin-runtime' {
   export const queryClient: unknown;
   export const editorBridge: EditorBridge;
   export function registerExtensionReferenceType(...args: unknown[]): void;
+}
+
+/**
+ * Host UI Kit (L8) — presentational components shipped on the subpath specifier
+ * `@c4s/plugin-runtime/ui`. Pure-presentational (props-in); the plugin still fetches
+ * the data. The four components below are the `stable` core — they count into
+ * `hostApiVersion` (the loader gates a prop mismatch at build time). The host source
+ * is at `src/client/host-ui-kit/core/*`; the subpath is registered in
+ * `src/server/core/plugin-host/runtime-shims.ts`.
+ *
+ * Experimental components (Badge, LoadingState, EntityListLayout, Pagination,
+ * EmptyState, FormField, InlineEditField, ActionButton) also ship from this subpath
+ * but are OUTSIDE `hostApiVersion` — opt-in, props may change without a major. Add
+ * their declarations here if/when you import them.
+ */
+declare module '@c4s/plugin-runtime/ui' {
+  import type { ComponentType, ReactNode } from 'react';
+
+  export interface DetailBreadcrumb {
+    label: ReactNode;
+    onClick?: () => void;
+  }
+  export interface DetailPanelShellProps {
+    breadcrumb: DetailBreadcrumb[];
+    actions?: ReactNode;
+    children: ReactNode;
+  }
+  export const DetailPanelShell: ComponentType<DetailPanelShellProps>;
+
+  export interface FieldGridProps {
+    children: ReactNode;
+    maxWidth?: number;
+  }
+  export const FieldGrid: ComponentType<FieldGridProps>;
+
+  export interface FieldRowProps {
+    label: ReactNode;
+    children: ReactNode;
+    align?: 'center' | 'start';
+  }
+  export const FieldRow: ComponentType<FieldRowProps>;
+
+  export interface EntityListHeaderProps {
+    /** Lucide-style icon component; loosely typed to avoid a `lucide-react` dep. */
+    icon?: ComponentType<{ size?: number | string }>;
+    title: string;
+    count?: number;
+    search?: string;
+    onSearchChange?: (q: string) => void;
+    searchPlaceholder?: string;
+    filters?: ReactNode;
+    actions?: ReactNode;
+  }
+  export const EntityListHeader: ComponentType<EntityListHeaderProps>;
 }
 
 declare module '@inharness-ai/agent-adapters' {
