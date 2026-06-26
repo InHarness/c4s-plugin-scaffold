@@ -3,11 +3,24 @@
  * to feed the render components and the list NodeViews. They use the host's shared
  * `QueryClient` (one fetch per slug, shared cache).
  *
- * NOTE: the API path is a placeholder. The host mounts routes under
- * `/api/projects/:id/__entity_type__` — adapt the client to the host's real prefix.
+ * NOTE: the host is project-scoped — per-project plugin routes are mounted under
+ * `/api/projects/:id/__entity_type__`. The client reads the project id from the
+ * server-injected global `window.__C4S_PROJECT__.id` (M31) and builds the prefix
+ * via `apiBase()`. When the global is absent the id defaults to `'default'`, so the
+ * URL stays project-scoped and a missing id surfaces as a LOUD 404 rather than
+ * silently degrading to a project-less path.
  */
 
 import { useQuery } from '@tanstack/react-query';
+
+/** Project-scoped API base for this entity (`/api/projects/<id>/__entity_type__`). */
+function apiBase(): string {
+  const pid =
+    (typeof window !== 'undefined'
+      ? (window as unknown as { __C4S_PROJECT__?: { id?: string } }).__C4S_PROJECT__?.id
+      : undefined) ?? 'default';
+  return `/api/projects/${pid}/__entity_type__`;
+}
 
 export function use__EntityName__BySlug(slug: string | null): {
   data: unknown | null | undefined;
@@ -17,7 +30,7 @@ export function use__EntityName__BySlug(slug: string | null): {
     queryKey: ['__entity_type__', slug],
     queryFn: async () => {
       if (!slug) return null;
-      const res = await fetch(`/api/__entity_type__/${encodeURIComponent(slug)}`);
+      const res = await fetch(`${apiBase()}/${encodeURIComponent(slug)}`);
       if (!res.ok) return null;
       return res.json();
     },
@@ -35,7 +48,7 @@ export async function list__EntityName__ByTags(args: {
     params.set('tags', args.tags.join(','));
     params.set('tagFilter', args.filter);
   }
-  const res = await fetch(`/api/__entity_type__?${params.toString()}`);
+  const res = await fetch(`${apiBase()}?${params.toString()}`);
   if (!res.ok) return [];
   const body = (await res.json()) as { items?: Array<{ slug: string }> };
   return body.items ?? [];
