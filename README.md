@@ -95,7 +95,9 @@ Chip/card/row render in **two pipelines** (the editor's Tiptap **and** chat's re
 - **Vite library mode** (`vite.config.ts`): two entries (`src/index.ts`, `src/frontend.tsx`), **ESM** output, all runtime peers as `external` (React/Tiptap/TanStack/Express/SQLite/zod/agent-adapters/`@c4s/plugin-runtime`) — the plugin does **not** bundle heavy deps (two copies of React/Tiptap break hooks). `vite-plugin-dts` emits `.d.ts` for both entries.
 - **`type: "module"`** (native ESM — the loader does `await import(...)`).
 - **`src/host.ts`** — the single import surface for `@c4s/plugin-runtime`.
-- **`src/c4s-runtime.d.ts`** — an **ambient type fallback** for the host (`@c4s/plugin-runtime`, `@inharness-ai/agent-adapters`, `express`, `zod`, `@tanstack/react-query`). The host does not publish types for plugin authors today; this file lets `npm run typecheck` pass offline. (The name intentionally ≠ `host.ts`, so TS does not treat it as the declaration file for `host.ts`.) **TODO: delete it once the host ships official types.**
+- **`src/_host-types.d.ts`** — pulls in the host's **published** types (`@inharness-ai/claude4spec/plugin-runtime` + `/ui`, via the `@inharness-ai/claude4spec` devDependency). One reference types both the `@c4s/plugin-runtime` value specifier and all type names — no vendored copy needed.
+- **`src/host-peers.d.ts`** — ambient stubs for **third-party** peers the plugin externalizes but doesn't install real `@types` for (`@inharness-ai/agent-adapters`, `express`, `zod`, `@tanstack/react-query`), so `npm run typecheck` passes offline. These are NOT host types; delete a block once you add its real dependency.
+- **`fallback/c4s-runtime.fallback.d.ts`** — the old hand-mirrored host contract, kept as an **offline / older-host fallback only** (not in `include` by default). Enable it (and drop `_host-types.d.ts`) when you can't install the published types.
 
 ---
 
@@ -148,7 +150,7 @@ The 0.0.2 brief was generated **before** the host commit `Host API baseline 1.0.
 | Entity fields | not emphasized | `label`/`labelPlural`/`displayOrder`/`pathPrefix` **required** in `EntityModuleManifest` |
 | `MountContext` | `{app, mcpHost, db, cwd}` | `{app, db, host, cwd, ws, tagsService, versionService, referencesService, entityStore, registerMcpServer(), registerEntityService()}` |
 | Chip/card/row | self-fetch | host injects `entity`: `{slug, entity, onOpen}` + `useGetBySlug`/`listByTags` slots |
-| `@c4s/plugin-runtime` types | come from the specifier (drop the fallback) | not published → ambient `c4s-runtime.d.ts` fallback is **required** for offline typecheck |
+| `@c4s/plugin-runtime` types | come from the specifier (drop the fallback) | **published** as `@inharness-ai/claude4spec/plugin-runtime` (+ `/ui`), referenced via `src/_host-types.d.ts`; `fallback/c4s-runtime.fallback.d.ts` is offline-only |
 
 Full drift writeup (feedback for the spec author): see the patch in `.claude4spec/patches/`.
 
@@ -157,7 +159,7 @@ Full drift writeup (feedback for the spec author): see the patch in `.claude4spe
 ## Acceptance criteria
 
 - [x] `npm install && npm run build` → `dist/index.js` + `dist/frontend.js` (ESM).
-- [x] `npm run typecheck` is green (thanks to `c4s-runtime.d.ts`).
+- [x] `npm run typecheck` is green (host types from `@inharness-ai/claude4spec`; peers stubbed in `src/host-peers.d.ts`).
 - [x] `dist/index.js` exports `PluginManifest` as default **and** named (`manifest`).
 - [x] The manifest fills all four `contributes.*`.
 - [x] The entity is wired: L1, L2, L3 (`__entity_type__-tools`, 5 tools), L4 (CRUD+restore), `backend.mount`, L9, M05, `onUnregister` (on the manifest).

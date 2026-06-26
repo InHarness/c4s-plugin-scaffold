@@ -48,6 +48,7 @@
     "zod": { "optional": true }
   },
   "devDependencies": {
+    "@inharness-ai/claude4spec": "^1.0.22",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@types/node": "^20.0.0",
     "@types/react": "^18.0.0",
