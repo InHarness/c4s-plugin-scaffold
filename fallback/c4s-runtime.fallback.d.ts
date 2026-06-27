@@ -1,26 +1,18 @@
 /**
- * AMBIENT FALLBACK for host types — brief section 11.1.
+ * OFFLINE / OLDER-HOST FALLBACK for the Host API types (NOT active by default).
  *
- * `@c4s/plugin-runtime` (and `@inharness-ai/agent-adapters`) do not publish types
- * for plugin authors today. These declarations mirror the REAL host 1.0.0 contract
- * (read from the `@inharness-ai/claude4spec` source) so `npm run typecheck` passes
- * offline.
+ * The host now PUBLISHES its types: `@inharness-ai/claude4spec/plugin-runtime`
+ * (+ `/ui`), referenced from `src/_host-types.d.ts`. That is the primary channel
+ * and types both the `@c4s/plugin-runtime` value specifier and all type names.
  *
- * TODO: once the host ships official types/a package, DELETE this file (the imports
- * in `src/host.ts` will resolve to the real declarations).
+ * Use THIS file only when the published types are unavailable — e.g. an offline
+ * build with no access to the `@inharness-ai/claude4spec` package, or a plugin
+ * pinned to an older host that predates published types. To enable it, add this
+ * path to your tsconfig `include` (and drop the `_host-types.d.ts` reference so
+ * the two `declare module '@c4s/plugin-runtime'` blocks don't collide).
  *
- * The filename intentionally differs from `host.ts` — if it were named `host.d.ts`,
- * TypeScript would treat it as the declaration file FOR `host.ts` and IGNORE these
- * ambient `declare module` blocks.
- *
- * Shape sources:
- *   - src/shared/plugin-host/manifest.ts        (PluginManifest, HOST_API_VERSION)
- *   - src/shared/plugin-host/types.ts           (EntityModuleManifest, SystemPromptContribution)
- *   - src/server/core/plugin-host/types.ts      (MountContext, SqlMigration, BackendModule)
- *   - src/server/serialization/types.ts         (EntitySerializer, RestoreResult, EntityDiff)
- *   - src/client/core/plugin-host/types.ts      (FrontendModule, Entity*Props, SidebarTabSlot)
- *   - src/client/runtime/plugin-runtime.ts      (frontend runtime exports)
- *   - src/client/host-ui-kit/*                  (Host UI Kit components + props, `@c4s/plugin-runtime/ui`)
+ * It mirrors the host 1.0.0 contract by hand, so it can drift — prefer the
+ * published types whenever you can install them.
  */
 
 declare module '@c4s/plugin-runtime' {
@@ -301,54 +293,4 @@ declare module '@c4s/plugin-runtime/ui' {
     actions?: ReactNode;
   }
   export const EntityListHeader: ComponentType<EntityListHeaderProps>;
-}
-
-declare module '@inharness-ai/agent-adapters' {
-  export interface McpServerInstance {
-    name: string;
-    [key: string]: unknown;
-  }
-  export function mcpTool(
-    name: string,
-    description: string,
-    schema: Record<string, unknown>,
-    handler: (args: Record<string, unknown>) => Promise<unknown> | unknown,
-  ): unknown;
-  export function createMcpServer(def: {
-    name: string;
-    tools: unknown[];
-  }): McpServerInstance;
-}
-
-declare module 'zod' {
-  export const z: any;
-}
-
-declare module '@tanstack/react-query' {
-  export function useQuery(options: {
-    queryKey: unknown[];
-    queryFn: () => unknown;
-    enabled?: boolean;
-  }): { data: any; isLoading: boolean; error: unknown };
-}
-
-declare module 'express' {
-  export interface Request {
-    params: Record<string, string>;
-    query: Record<string, unknown>;
-    body: unknown;
-  }
-  export interface Response {
-    status(code: number): Response;
-    json(body: unknown): Response;
-  }
-  export type NextFunction = (err?: unknown) => void;
-  export interface Router {
-    get(path: string, ...handlers: unknown[]): Router;
-    post(path: string, ...handlers: unknown[]): Router;
-    patch(path: string, ...handlers: unknown[]): Router;
-    delete(path: string, ...handlers: unknown[]): Router;
-    use(...handlers: unknown[]): Router;
-  }
-  export function Router(): Router;
 }

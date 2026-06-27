@@ -24,6 +24,9 @@ const EXTERNAL = [
   'react/jsx-runtime',
   '@tiptap/core',
   '@tanstack/react-query',
+  // Library-peer: the host provides the single router instance via
+  // host.mountFrontend(router, …); two copies would split the route tree.
+  '@tanstack/react-router',
   'express',
   'better-sqlite3',
   'zod',
