@@ -1,0 +1,16 @@
+{
+  "description": null,
+  "kind": "edge-case",
+  "slug": "ac-renderchip-broken-state",
+  "status": "active",
+  "tags": [
+    "frontend"
+  ],
+  "text": "renderChip (inline_mention) to jedyne miejsce renderujące stan „broken\" — przyjmuje entity = null i pokazuje placeholder zepsutej referencji.",
+  "verifies": [
+    {
+      "slug": "example-entity-editor",
+      "type": "ui-view"
+    }
+  ]
+}

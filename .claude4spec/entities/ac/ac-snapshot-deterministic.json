@@ -1,0 +1,20 @@
+{
+  "description": null,
+  "kind": "requirement",
+  "slug": "ac-snapshot-deterministic",
+  "status": "active",
+  "tags": [
+    "serializer"
+  ],
+  "text": "snapshot() serializera jest deterministyczny — ten sam stan encji zawsze daje identyczny ExampleEntitySnapshot (stabilna kolejność pól).",
+  "verifies": [
+    {
+      "slug": "example-entity-snapshot",
+      "type": "dto"
+    },
+    {
+      "slug": "get-example-entities-slug",
+      "type": "endpoint"
+    }
+  ]
+}

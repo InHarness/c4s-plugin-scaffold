@@ -1,22 +1,35 @@
 /**
- * L8 — list row (element/tagged list). PURE REACT.
- * Props (1.0.0 contract): `{ entity, active, onOpen }` — entity is always present.
+ * L8 — single list ROW. PURE REACT; the host injects the resolved `entity` (rows
+ * never self-fetch). The host calls it once per entity inside its own list views,
+ * and the plugin's list screen reuses it (see `routes.tsx`).
  *
- * This is a SINGLE-ROW renderer: the host calls it once per entity inside its own
- * list views (ElementListView / TaggedListView). The list-level header/search/count
- * (`EntityListHeader` from the Host UI Kit) is owned by the host's sidebar list pages
- * and is NOT available to this per-row slot — `FrontendModule` exposes no list-container
- * hook. Keep this component to one row; the kit only frames the detail panel here.
+ * Rendered through the Host UI Kit `EntityListRow` (M34, experimental tier) rather
+ * than hand-written markup — which is what `ac-list-screen-entitylistrow` asks for.
+ * `EntityListRow` needs a `tagLookup` Map (slug → Tag) to draw tag chips; the
+ * scaffold's data model carries no tags, so the lookup is empty (a derived plugin
+ * with tagged entities populates it).
  */
 
-import * as React from 'react';
-import type { EntityRowProps } from '../../host';
+import type { FC } from 'react';
+import { useMemo } from 'react';
+import { EntityListRow } from '@c4s/plugin-runtime/ui';
+import type { Tag } from '@c4s/plugin-runtime/ui';
+import type { EntityRowProps } from '@c4s/plugin-runtime';
+import type { ExampleEntitySnapshot } from '../dto';
 
-export const __EntityName__Row: React.FC<EntityRowProps> = ({ entity, active, onOpen }) => {
-  const data = entity as { slug?: string; title?: string };
+const mutedStyle = { color: 'var(--c-muted, #6b7280)' };
+
+export const ExampleEntityRow: FC<EntityRowProps<ExampleEntitySnapshot>> = ({ entity, onOpen }) => {
+  const tagLookup = useMemo(() => new Map<string, Tag>(), []);
   return (
-    <button type="button" onClick={onOpen} aria-current={active ? 'true' : undefined}>
-      {data.title ?? data.slug /* TODO: label field */}
-    </button>
+    <EntityListRow
+      leading={<span aria-hidden="true">▦</span>}
+      onClick={onOpen ?? (() => {})}
+      tags={[]}
+      tagLookup={tagLookup}
+    >
+      <span>{entity.name ?? entity.slug}</span>
+      {entity.description ? <span style={mutedStyle}> — {entity.description}</span> : null}
+    </EntityListRow>
   );
 };

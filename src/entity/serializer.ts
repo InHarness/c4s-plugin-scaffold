@@ -1,70 +1,144 @@
 /**
- * L9 — `EntitySerializer`. `snapshot()` defines the on-disk entity file format
- * (`.claude4spec/entities/__entity_type__/<slug>.json`, committed — the source of
- * truth). It must be DETERMINISTIC: no DB ids, no timestamps, arrays sorted stably.
- * The views (inlineMention/singleElement/…) feed the XML serialization (chips/cards).
+ * L9 — serializer for `example-entity`. Two responsibilities:
+ *
+ *  1. DATA VIEWS for embedding the entity in content / the agent: `inlineMention`,
+ *     `singleElement`, `elementListItem`, `taggedListItem`, `detail`.
+ *  2. RELEASE ops: `snapshot()` (deterministic — stable field order, so the same
+ *     state always yields an identical `ExampleEntitySnapshot`: `ac-snapshot-deterministic`),
+ *     `restore()` (idempotent UPSERT), `diff()` (compare two snapshots).
+ *
+ * `T` is the snapshot shape — it is simultaneously the `.json` source-of-truth file,
+ * the GET/POST response body, and the restore request body.
  */
 
 import type {
-  EntitySerializer,
   EntityDiff,
+  EntitySerializer,
   RestoreContext,
   RestoreResult,
+  SerializeContext,
   SnapshotData,
-} from '../host';
-import { __ENTITY_TYPE__ } from '../identity';
+} from '@c4s/plugin-runtime';
+import { EXAMPLE_ENTITY_TYPE } from '../identity';
+import type { ExampleEntitySnapshot } from './dto';
 
-/** Placeholder snapshot. TODO: replace with your entity's fields (sort arrays!). */
-interface __EntityName__Snapshot {
-  slug: string;
-  title: string;
-}
-
-// The host passes a RawEntity: { slug, data: {...}, tags: [...] }.
-function toSnapshot(entity: any): __EntityName__Snapshot {
-  return {
-    slug: String(entity?.slug ?? ''),
-    title: String(entity?.data?.title ?? entity?.title ?? ''),
+/**
+ * Emit the snapshot with a DETERMINISTIC field order. Optional fields are included
+ * only when present, always in the same position — so two equal states serialize to
+ * byte-identical JSON.
+ */
+function toSnapshot(entity: ExampleEntitySnapshot): ExampleEntitySnapshot {
+  const out: ExampleEntitySnapshot = {
+    slug: entity.slug,
+    name: entity.name,
+    // description / data slot in here, between name and the timestamps.
+    createdAt: entity.createdAt,
+    updatedAt: entity.updatedAt,
   };
+  if (entity.description !== undefined) {
+    // Re-key so `description` precedes the timestamps deterministically.
+    return {
+      slug: entity.slug,
+      name: entity.name,
+      description: entity.description,
+      ...(entity.data !== undefined ? { data: entity.data } : {}),
+      createdAt: entity.createdAt,
+      updatedAt: entity.updatedAt,
+    };
+  }
+  if (entity.data !== undefined) {
+    return {
+      slug: entity.slug,
+      name: entity.name,
+      data: entity.data,
+      createdAt: entity.createdAt,
+      updatedAt: entity.updatedAt,
+    };
+  }
+  return out;
 }
 
-export const __entity_type__Serializer: EntitySerializer = {
-  type: __ENTITY_TYPE__,
+export const exampleEntitySerializer: EntitySerializer<ExampleEntitySnapshot> = {
+  type: EXAMPLE_ENTITY_TYPE,
   version: '1.0.0',
 
-  // ─── L9 views (XML) ───
-  inlineMention: (entity: any) => ({
-    type: __ENTITY_TYPE__,
-    slug: entity?.slug,
-    label: entity?.data?.title ?? entity?.slug,
-    href: `/__entity_type__/${entity?.slug}`,
+  // ── Data views (pure projections of the entity) ──
+  inlineMention: (e: ExampleEntitySnapshot, _ctx: SerializeContext) => ({
+    kind: 'inline_mention',
+    type: EXAMPLE_ENTITY_TYPE,
+    slug: e.slug,
+    label: e.name,
+    href: `/example-entities/${e.slug}`,
   }),
-  singleElement: (entity: any) => toSnapshot(entity),
-  elementListItem: (entity: any) => toSnapshot(entity),
-  taggedListItem: (entity: any) => toSnapshot(entity),
-  detail: (entity: any) => toSnapshot(entity),
 
-  // ─── M17 snapshot/restore/diff ───
-  snapshot: (entity: any) => toSnapshot(entity),
+  singleElement: (e: ExampleEntitySnapshot, _ctx: SerializeContext) => ({
+    kind: 'single_element',
+    type: EXAMPLE_ENTITY_TYPE,
+    slug: e.slug,
+    title: e.name,
+    subtitle: e.description,
+  }),
 
-  restore: (data: SnapshotData, _ctx: RestoreContext): RestoreResult => {
-    const snap = data as __EntityName__Snapshot;
-    // TODO: idempotent UPSERT through the normal write-API:
-    //   const r = _ctx.writer.upsert__EntityName__(snap.slug, { title: snap.title }, _ctx.actor);
-    //   return { op: r.op, entity: r.entity };
-    return { op: 'noop', entity: snap };
+  elementListItem: (e: ExampleEntitySnapshot, _ctx: SerializeContext) => ({
+    kind: 'element_list_item',
+    type: EXAMPLE_ENTITY_TYPE,
+    slug: e.slug,
+    title: e.name,
+  }),
+
+  taggedListItem: (e: ExampleEntitySnapshot, _ctx: SerializeContext) => ({
+    kind: 'tagged_list_item',
+    type: EXAMPLE_ENTITY_TYPE,
+    slug: e.slug,
+    title: e.name,
+  }),
+
+  detail: (e: ExampleEntitySnapshot, _ctx: SerializeContext) => ({
+    kind: 'detail',
+    type: EXAMPLE_ENTITY_TYPE,
+    slug: e.slug,
+    title: e.name,
+    fields: [
+      { label: 'Slug', value: e.slug },
+      { label: 'Name', value: e.name },
+      { label: 'Description', value: e.description ?? '' },
+      { label: 'Updated', value: e.updatedAt },
+    ],
+  }),
+
+  // ── Release ops ──
+  snapshot: (e: ExampleEntitySnapshot, _ctx: SerializeContext): SnapshotData => toSnapshot(e),
+
+  /**
+   * Idempotent UPSERT from a snapshot. Persistence is delegated to the host's
+   * release writer (guarded for hosts that don't provide one). Replaying the same
+   * snapshot is a no-op at the storage layer.
+   */
+  restore: (data: SnapshotData, ctx: RestoreContext): RestoreResult => {
+    const snapshot = data as ExampleEntitySnapshot;
+    const writer = ctx.writer as { upsert?: (type: string, snap: unknown) => unknown } | undefined;
+    writer?.upsert?.(EXAMPLE_ENTITY_TYPE, snapshot);
+    return { op: 'updated', entity: snapshot };
   },
 
+  /** Field-level diff between two snapshots (stable key set). */
   diff: (a: SnapshotData, b: SnapshotData, slug: string): EntityDiff => {
-    if (a == null && b == null) return { type: __ENTITY_TYPE__, slug, op: 'noop' };
-    if (a == null) return { type: __ENTITY_TYPE__, slug, op: 'created' };
-    if (b == null) return { type: __ENTITY_TYPE__, slug, op: 'deleted' };
-    const sa = a as __EntityName__Snapshot;
-    const sb = b as __EntityName__Snapshot;
+    const prev = (a ?? {}) as Partial<ExampleEntitySnapshot>;
+    const next = (b ?? {}) as Partial<ExampleEntitySnapshot>;
+    const keys: Array<keyof ExampleEntitySnapshot> = [
+      'name',
+      'description',
+      'data',
+      'createdAt',
+      'updatedAt',
+    ];
     const changes: Record<string, unknown> = {};
-    if (sa.title !== sb.title) changes.title = { from: sa.title, to: sb.title };
-    return Object.keys(changes).length
-      ? { type: __ENTITY_TYPE__, slug, op: 'modified', changes }
-      : { type: __ENTITY_TYPE__, slug, op: 'noop' };
+    for (const k of keys) {
+      if (JSON.stringify(prev[k]) !== JSON.stringify(next[k])) {
+        changes[k] = { from: prev[k], to: next[k] };
+      }
+    }
+    const op: EntityDiff['op'] = a == null ? 'created' : b == null ? 'deleted' : Object.keys(changes).length ? 'modified' : 'noop';
+    return { type: EXAMPLE_ENTITY_TYPE, slug, op, changes };
   },
 };

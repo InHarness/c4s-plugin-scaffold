@@ -1,0 +1,16 @@
+{
+  "description": null,
+  "kind": "edge-case",
+  "slug": "ac-get-slug-404",
+  "status": "active",
+  "tags": [
+    "backend"
+  ],
+  "text": "GET /example-entities/:slug zwraca 404, gdy encja o danym slugu nie istnieje.",
+  "verifies": [
+    {
+      "slug": "get-example-entities-slug",
+      "type": "endpoint"
+    }
+  ]
+}

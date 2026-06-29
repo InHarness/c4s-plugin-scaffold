@@ -1,13 +1,10 @@
 /**
- * `contributes.settings` — stub (M26). Values land under
- * `config.plugins["__plugin_name__"][key]`. Note: settings/commands are active when the
- * plugin is loaded+trusted, REGARDLESS of the `config.entities` whitelist (the settings
- * panel survives deactivation of the entity types).
- *
- * `kind`: 'hot-reload' (from the next turn) | 'executive' (rebuild ProjectContext).
+ * `contributes.settings` (M26). ALWAYS registered — not filtered by `config.entities`
+ * (`ac-config-entities-filter`). Values are stored by the host under
+ * `config.plugins["c4s-plugin-scaffold"][key]`.
  */
 
-import type { PluginSettingsModule } from '../host';
+import type { PluginSettingsModule } from '@c4s/plugin-runtime';
 
 export const settingsStub: PluginSettingsModule = [
   {
@@ -16,6 +13,6 @@ export const settingsStub: PluginSettingsModule = [
     control: 'toggle',
     kind: 'hot-reload',
     default: true,
-    help: 'TODO: field description. Example toggle — replace with your plugin settings.',
+    help: 'Example hot-reload setting. Replace with your own plugin options.',
   },
 ];

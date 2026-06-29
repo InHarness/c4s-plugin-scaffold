@@ -1,0 +1,11 @@
+{
+  "description": null,
+  "kind": "requirement",
+  "slug": "ac-mcp-factory",
+  "status": "active",
+  "tags": [
+    "backend"
+  ],
+  "text": "Serwer MCP typu encji jest rejestrowany jako fabryka (registerMcpServer('${type}-tools', factory)), a nie jako gotowa instancja.",
+  "verifies": []
+}

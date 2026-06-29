@@ -1,0 +1,20 @@
+{
+  "description": null,
+  "kind": "requirement",
+  "slug": "ac-renderrow-embedded-only",
+  "status": "active",
+  "tags": [
+    "frontend"
+  ],
+  "text": "Slot renderRow jest wywoływany wyłącznie dla osadzonych list (element_list/tagged_list), nigdy dla ekranu listy.",
+  "verifies": [
+    {
+      "slug": "example-entity-editor",
+      "type": "ui-view"
+    },
+    {
+      "slug": "example-entity-list",
+      "type": "ui-view"
+    }
+  ]
+}

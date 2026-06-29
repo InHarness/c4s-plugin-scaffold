@@ -1,0 +1,20 @@
+{
+  "description": null,
+  "kind": "requirement",
+  "slug": "ac-rename-via-newslug",
+  "status": "active",
+  "tags": [
+    "backend"
+  ],
+  "text": "Zmiana nazwy nie przenosi sluga; rename następuje wyłącznie przez jawny newSlug i repointuje referencje stron oraz FK.",
+  "verifies": [
+    {
+      "slug": "update-example-entity-request",
+      "type": "dto"
+    },
+    {
+      "slug": "patch-example-entities-slug",
+      "type": "endpoint"
+    }
+  ]
+}

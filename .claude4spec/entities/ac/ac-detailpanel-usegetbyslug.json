@@ -1,0 +1,16 @@
+{
+  "description": null,
+  "kind": "requirement",
+  "slug": "ac-detailpanel-usegetbyslug",
+  "status": "active",
+  "tags": [
+    "frontend"
+  ],
+  "text": "Panel detalu (detailPanel, ViewKind: detail) ładuje encję po slugu hookiem useGetBySlug i renderuje stany ładowania oraz braku encji.",
+  "verifies": [
+    {
+      "slug": "example-entity-detail",
+      "type": "ui-view"
+    }
+  ]
+}

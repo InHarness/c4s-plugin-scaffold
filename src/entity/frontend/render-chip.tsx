@@ -1,34 +1,46 @@
 /**
- * L8 — chip (inline). PURE REACT + entity injected by the host.
- *
- * Renders in TWO pipelines: Tiptap (the editor) AND react-markdown (chat). Hence the
- * BANS: no `useEditor()`/`useCurrentEditor()`, no `editor.commands.*`, no dependency
- * on ProseMirror (`NodeViewProps`/decorations). Click calls only
- * `editorBridge.openEntity(type, slug)`.
- *
- * Props (1.0.0 contract): `{ slug, entity, onOpen }` — the host PROVIDES the resolved
- * entity; `entity === null` ⇒ broken chip (NOT self-fetch).
+ * L8 — inline mention chip. This is the ONLY render slot that takes `entity: T | null`
+ * and renders the "broken" reference state (a dangling reference whose target was
+ * deleted) — `ac-renderchip-broken-state`. Purely presentational: the host injects
+ * the resolved entity; the chip never fetches (`ac-render-presentational`).
  */
 
-import * as React from 'react';
-import { editorBridge } from '../../host';
-import type { EntityChipProps } from '../../host';
+import type { FC } from 'react';
+import { editorBridge } from '@c4s/plugin-runtime';
+import type { EntityChipProps } from '@c4s/plugin-runtime';
+import { EXAMPLE_ENTITY_TYPE } from '../../identity';
+import type { ExampleEntitySnapshot } from '../dto';
 
-export const __EntityName__Chip: React.FC<EntityChipProps> = ({ slug, entity, onOpen }) => {
-  const data = entity as { title?: string } | null;
-  const open = () => (onOpen ? onOpen() : editorBridge.openEntity('__entity_type__', slug));
+export const ExampleEntityChip: FC<EntityChipProps<ExampleEntitySnapshot>> = ({
+  slug,
+  entity,
+  onOpen,
+}) => {
+  const open = () => (onOpen ? onOpen() : editorBridge.openEntity(EXAMPLE_ENTITY_TYPE, slug));
 
-  if (!data) {
+  // Broken reference — the only slot that handles `entity === null`.
+  if (!entity) {
     return (
-      <button type="button" onClick={open} title={`broken reference: __entity_type__ '${slug}'`}>
+      <span
+        className="c4s-chip c4s-chip--broken"
+        style={{ color: 'var(--c-danger, #c0392b)' }}
+        title={`Broken reference: ${slug}`}
+      >
         ⚠ {slug}
-      </button>
+      </span>
     );
   }
 
   return (
-    <button type="button" onClick={open}>
-      {data.title ?? slug /* TODO: your entity's label field */}
-    </button>
+    <span
+      className="c4s-chip"
+      role="link"
+      tabIndex={0}
+      onClick={open}
+      onKeyDown={(e) => (e.key === 'Enter' ? open() : undefined)}
+      style={{ cursor: 'pointer', color: 'var(--c-accent, #2d6cdf)' }}
+    >
+      {entity.name}
+    </span>
   );
 };

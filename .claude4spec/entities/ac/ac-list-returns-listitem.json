@@ -1,0 +1,20 @@
+{
+  "description": null,
+  "kind": "requirement",
+  "slug": "ac-list-returns-listitem",
+  "status": "active",
+  "tags": [
+    "backend"
+  ],
+  "text": "GET /example-entities zwraca lekkie elementy ExampleEntityListItem (bez pola data), nie pełne snapshoty.",
+  "verifies": [
+    {
+      "slug": "example-entity-list-item",
+      "type": "dto"
+    },
+    {
+      "slug": "get-example-entities",
+      "type": "endpoint"
+    }
+  ]
+}

@@ -1,55 +1,60 @@
 /**
- * Frontend data-resolution slots: `useGetBySlug` + `listByTags`. The host calls them
- * to feed the render components and the list NodeViews. They use the host's shared
- * `QueryClient` (one fetch per slug, shared cache).
- *
- * NOTE: the host is project-scoped — per-project plugin routes are mounted under
- * `/api/projects/:id/__entity_type__`. The client reads the project id from the
- * server-injected global `window.__C4S_PROJECT__.id` (M31) and builds the prefix
- * via `apiBase()`. When the global is absent the id defaults to `'default'`, so the
- * URL stays project-scoped and a missing id surfaces as a LOUD 404 rather than
- * silently degrading to a project-less path.
+ * Frontend data-resolution slots. The render slots and screens are PURELY
+ * presentational — they NEVER call the API directly; they go through these hooks
+ * (`ac-render-presentational`). Project-scoped: requests hit
+ * `/api/projects/<id>/example-entities`.
  */
 
 import { useQuery } from '@tanstack/react-query';
+import type { ExampleEntityListItem, ExampleEntitySnapshot } from '../dto';
 
-/** Project-scoped API base for this entity (`/api/projects/<id>/__entity_type__`). */
+/** Resolve the current project id from the host-provided global (default `default`). */
 function apiBase(): string {
-  const pid =
-    (typeof window !== 'undefined'
-      ? (window as unknown as { __C4S_PROJECT__?: { id?: string } }).__C4S_PROJECT__?.id
-      : undefined) ?? 'default';
-  return `/api/projects/${pid}/__entity_type__`;
+  const projectId =
+    (globalThis as { __C4S_PROJECT__?: { id?: string } }).__C4S_PROJECT__?.id ?? 'default';
+  return `/api/projects/${projectId}/example-entities`;
 }
 
-export function use__EntityName__BySlug(slug: string | null): {
-  data: unknown | null | undefined;
+/** Load one entity by slug. `data` is `null` until resolved or when not found. */
+export function useGetBySlug(slug: string | null): {
+  data: ExampleEntitySnapshot | null;
   isLoading: boolean;
 } {
-  const { data, isLoading } = useQuery({
-    queryKey: ['__entity_type__', slug],
+  const query = useQuery({
+    queryKey: ['example-entity', slug],
+    enabled: Boolean(slug),
     queryFn: async () => {
-      if (!slug) return null;
-      const res = await fetch(`${apiBase()}/${encodeURIComponent(slug)}`);
-      if (!res.ok) return null;
-      return res.json();
+      const res = await fetch(`${apiBase()}/${encodeURIComponent(String(slug))}`);
+      if (res.status === 404 || !res.ok) return null;
+      return (await res.json()) as ExampleEntitySnapshot;
     },
-    enabled: !!slug,
   });
-  return { data, isLoading };
+  return { data: (query.data as ExampleEntitySnapshot | null) ?? null, isLoading: query.isLoading };
 }
 
-export async function list__EntityName__ByTags(args: {
+/** Full list items for the list screen (the lightweight projection, no `data`). */
+export function useExampleEntityList(): { data: ExampleEntityListItem[]; isLoading: boolean } {
+  const query = useQuery({
+    queryKey: ['example-entity', '__list__'],
+    queryFn: async () => {
+      const res = await fetch(apiBase());
+      if (!res.ok) return [] as ExampleEntityListItem[];
+      return (await res.json()) as ExampleEntityListItem[];
+    },
+  });
+  return { data: (query.data as ExampleEntityListItem[]) ?? [], isLoading: query.isLoading };
+}
+
+/** Resolve slug refs filtered by tags (`and` | `or`, default `or`) — host slot. */
+export async function listByTags(args: {
   tags: string[];
   filter: 'and' | 'or';
 }): Promise<Array<{ slug: string }>> {
   const params = new URLSearchParams();
-  if (args.tags.length) {
-    params.set('tags', args.tags.join(','));
-    params.set('tagFilter', args.filter);
-  }
+  if (args.tags.length) params.set('tags', args.tags.join(','));
+  params.set('filter', args.filter);
   const res = await fetch(`${apiBase()}?${params.toString()}`);
   if (!res.ok) return [];
-  const body = (await res.json()) as { items?: Array<{ slug: string }> };
-  return body.items ?? [];
+  const items = (await res.json()) as ExampleEntityListItem[];
+  return items.map((i) => ({ slug: i.slug }));
 }

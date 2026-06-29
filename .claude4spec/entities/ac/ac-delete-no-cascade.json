@@ -1,0 +1,16 @@
+{
+  "description": null,
+  "kind": "edge-case",
+  "slug": "ac-delete-no-cascade",
+  "status": "active",
+  "tags": [
+    "backend"
+  ],
+  "text": "DELETE :slug nie kaskaduje miękkich FK — referencje wskazujące na usuniętą encję są raportowane jako wiszące, nie usuwane.",
+  "verifies": [
+    {
+      "slug": "delete-example-entities-slug",
+      "type": "endpoint"
+    }
+  ]
+}

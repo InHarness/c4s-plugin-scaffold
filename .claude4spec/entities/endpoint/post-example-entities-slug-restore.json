@@ -1,0 +1,23 @@
+{
+  "description": "Idempotentny UPSERT ze snapshotu (restore serializera). Używane przy boot/file-watch oraz przy odtwarzaniu wydań. Body żądania = pełny ExampleEntitySnapshot. Powtórne wywołanie z tym samym snapshotem nie zmienia wyniku.",
+  "linked_dtos": [
+    {
+      "dto_slug": "example-entity-snapshot",
+      "relation": "request",
+      "status_code": null
+    },
+    {
+      "dto_slug": "example-entity-snapshot",
+      "relation": "response",
+      "status_code": 200
+    }
+  ],
+  "method": "POST",
+  "path": "/example-entities/:slug/restore",
+  "slug": "post-example-entities-slug-restore",
+  "summary": "Odtwórz przykładową encję ze snapshotu",
+  "tags": [
+    "backend",
+    "example-entity"
+  ]
+}

@@ -1,24 +1,33 @@
 /**
- * L1 — SQLite migrations (per-plugin, idempotent). The host runs them on
- * `mountBackend` with its own `schema_version` counter for this plugin.
+ * L1 — migrations that build the DERIVED SQLite index for `example-entity`.
  *
- * The entity has ONE placeholder data field besides `slug` (`title`) so that CRUD /
- * serializer / chip have something to show.
+ * The source of truth is the per-entity `.json` file; this table is a queryable
+ * projection of it. The schema is FORWARD-ONLY and IDEMPOTENT (`IF NOT EXISTS`):
+ * replaying it changes neither schema nor data (`ac-migrations-forward-idempotent`).
+ *
+ * The table is named `example_entity` (snake_case) — NEVER the reserved word
+ * `table` (`ac-table-snake-case`). Columns mirror `ExampleEntitySnapshot`
+ * (`data` is JSON serialized as TEXT — SQLite has no native JSON type).
  */
 
-import type { SqlMigration } from '../../host';
-import { __ENTITY_TABLE__ } from '../../identity';
+import type { SqlMigration } from '@c4s/plugin-runtime';
+import { EXAMPLE_ENTITY_TABLE } from '../../identity';
 
-export const __entity_type__Migrations: SqlMigration[] = [
+export const exampleEntityMigrations: SqlMigration[] = [
   {
     version: 1,
-    name: `create_${__ENTITY_TABLE__}`,
-    // Idempotent SQL (must tolerate replay).
+    name: `create_${EXAMPLE_ENTITY_TABLE}`,
     up: `
-      CREATE TABLE IF NOT EXISTS ${__ENTITY_TABLE__} (
-        slug  TEXT PRIMARY KEY,
-        title TEXT NOT NULL DEFAULT ''   -- TODO: replace with your entity's fields
+      CREATE TABLE IF NOT EXISTS ${EXAMPLE_ENTITY_TABLE} (
+        slug        TEXT PRIMARY KEY NOT NULL,
+        name        TEXT NOT NULL,
+        description TEXT,
+        data        TEXT,
+        created_at  TEXT NOT NULL,
+        updated_at  TEXT NOT NULL
       );
+      CREATE INDEX IF NOT EXISTS idx_${EXAMPLE_ENTITY_TABLE}_name
+        ON ${EXAMPLE_ENTITY_TABLE} (name);
     `,
   },
 ];

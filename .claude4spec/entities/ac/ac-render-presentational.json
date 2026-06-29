@@ -1,0 +1,16 @@
+{
+  "description": null,
+  "kind": "requirement",
+  "slug": "ac-render-presentational",
+  "status": "active",
+  "tags": [
+    "frontend"
+  ],
+  "text": "Render-sloty (renderChip/renderCard/renderRow) są czysto prezentacyjne i pobierają dane wyłącznie hookiem useGetBySlug — nie wykonują własnych zapytań do API.",
+  "verifies": [
+    {
+      "slug": "example-entity-editor",
+      "type": "ui-view"
+    }
+  ]
+}

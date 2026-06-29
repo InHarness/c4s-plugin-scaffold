@@ -1,0 +1,79 @@
+{
+  "description": "Pełny kształt przykładowej encji: jednocześnie format pliku źródła prawdy `.json`, body odpowiedzi GET `:slug`/POST oraz body żądania `restore`. Snapshot serializera jest deterministyczny; `restore` z tego kształtu to idempotentny UPSERT. DOSTOSUJ: w pluginie pochodnym to Twój `<Typ>Snapshot` — pola zależą od Twojego modelu danych.",
+  "examples": [
+    {
+      "name": "minimal",
+      "summary": "Najmniejszy poprawny snapshot — same wymagane pola.",
+      "value": {
+        "createdAt": "2026-01-01T10:00:00.000Z",
+        "name": "Example Alpha",
+        "slug": "example-alpha",
+        "updatedAt": "2026-01-01T10:00:00.000Z"
+      }
+    },
+    {
+      "name": "full",
+      "summary": "Pełny snapshot z opisem i ładunkiem data.",
+      "value": {
+        "createdAt": "2026-01-02T09:30:00.000Z",
+        "data": {
+          "color": "#2563eb",
+          "labels": [
+            "demo",
+            "scaffold"
+          ],
+          "pinned": true
+        },
+        "description": "Druga przykładowa encja",
+        "name": "Example Beta",
+        "slug": "example-beta",
+        "updatedAt": "2026-06-30T14:15:00.000Z"
+      }
+    }
+  ],
+  "fields": [
+    {
+      "description": "Kebab-case identyfikator (PK) = slugify(name). Stabilny; zmiana wyłącznie przez newSlug.",
+      "name": "slug",
+      "required": true,
+      "type": "string"
+    },
+    {
+      "description": "Nazwa wyświetlana encji.",
+      "name": "name",
+      "required": true,
+      "type": "string"
+    },
+    {
+      "description": "Opcjonalny opis.",
+      "name": "description",
+      "required": false,
+      "type": "string"
+    },
+    {
+      "description": "Dowolny ładunek JSON — właściwa treść encji (placeholder: autor pochodny zastępuje własnym schematem).",
+      "name": "data",
+      "required": false,
+      "type": "object"
+    },
+    {
+      "description": "Znacznik utworzenia (ISO 8601).",
+      "name": "createdAt",
+      "required": true,
+      "type": "string"
+    },
+    {
+      "description": "Znacznik ostatniej modyfikacji (ISO 8601).",
+      "name": "updatedAt",
+      "required": true,
+      "type": "string"
+    }
+  ],
+  "name": "ExampleEntitySnapshot",
+  "slug": "example-entity-snapshot",
+  "tags": [
+    "backend",
+    "example-entity",
+    "serializer"
+  ]
+}

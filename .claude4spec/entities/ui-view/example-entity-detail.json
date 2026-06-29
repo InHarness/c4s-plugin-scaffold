@@ -1,0 +1,20 @@
+{
+  "description": "Ekran detalu typu encji. Realizuje slot detailPanel (wymagany, ViewKind: detail). Montowany przez routes pod pathPrefix/:slug. Dane przez useGetBySlug; prezentacja przez model trójwarstwowy (czysty komponent → host-resolver → Host UI Kit).",
+  "designSystemSlug": null,
+  "name": "Example Entity — panel detalu",
+  "params": [
+    {
+      "description": "Slug encji do wyświetlenia.",
+      "in": "path",
+      "name": "slug",
+      "required": true,
+      "type": "string"
+    }
+  ],
+  "slug": "example-entity-detail",
+  "tags": [
+    "example-entity",
+    "frontend"
+  ],
+  "url": "/example-entities/:slug"
+}

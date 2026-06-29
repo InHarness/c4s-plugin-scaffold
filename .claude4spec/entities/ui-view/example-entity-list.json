@@ -1,0 +1,28 @@
+{
+  "description": "Ekran listy typu encji. NIE jest slotem i NIE używa renderRow — to kompozycja sidebarTab (wejście) + routes (montuje stronę pod pathPrefix) + Host UI Kit (EntityListRow, ListPageLayout, TagFilterBar) z własnym hookiem listy. Wiersze renderuje EntityListRow z Host UI Kit, nie slot renderRow.",
+  "designSystemSlug": null,
+  "name": "Example Entity — ekran listy",
+  "params": [
+    {
+      "description": "Filtr po tagach (TagFilterBar) — lista CSV slugów.",
+      "in": "query",
+      "name": "tags",
+      "required": false,
+      "type": "string"
+    },
+    {
+      "default": "or",
+      "description": "Tryb łączenia tagów: and | or.",
+      "in": "query",
+      "name": "filter",
+      "required": false,
+      "type": "enum"
+    }
+  ],
+  "slug": "example-entity-list",
+  "tags": [
+    "example-entity",
+    "frontend"
+  ],
+  "url": "/example-entities"
+}

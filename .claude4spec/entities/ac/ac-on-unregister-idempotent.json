@@ -1,0 +1,11 @@
+{
+  "description": null,
+  "kind": "requirement",
+  "slug": "ac-on-unregister-idempotent",
+  "status": "active",
+  "tags": [
+    "koperta"
+  ],
+  "text": "onUnregister() pluginu jest idempotentny i nigdy nie rzuca — wielokrotne wyrejestrowanie kończy się bez błędu.",
+  "verifies": []
+}

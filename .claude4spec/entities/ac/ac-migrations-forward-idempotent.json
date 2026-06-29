@@ -1,0 +1,16 @@
+{
+  "description": null,
+  "kind": "requirement",
+  "slug": "ac-migrations-forward-idempotent",
+  "status": "active",
+  "tags": [
+    "backend"
+  ],
+  "text": "Migracje budują indeks SQLite wyłącznie naprzód i są idempotentne — ponowne uruchomienie nie zmienia schematu ani danych.",
+  "verifies": [
+    {
+      "slug": "example-entity",
+      "type": "database-table"
+    }
+  ]
+}

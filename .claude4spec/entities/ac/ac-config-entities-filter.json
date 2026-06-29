@@ -1,0 +1,11 @@
+{
+  "description": null,
+  "kind": "requirement",
+  "slug": "ac-config-entities-filter",
+  "status": "active",
+  "tags": [
+    "koperta"
+  ],
+  "text": "config.entities filtruje wyłącznie wnoszone typy encji (entities[]); nie wpływa na writingStyles, settings ani commands.",
+  "verifies": []
+}

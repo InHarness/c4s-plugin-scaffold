@@ -1,0 +1,30 @@
+{
+  "description": "Body żądania POST. `slug` nie jest przyjmowany w body — pochodzi z `slugify(name)`. Pozostałe znaczniki czasu nadaje warstwa danych przy zapisie.",
+  "examples": [],
+  "fields": [
+    {
+      "description": "Nazwa encji; slug = slugify(name).",
+      "name": "name",
+      "required": true,
+      "type": "string"
+    },
+    {
+      "description": "Opcjonalny opis.",
+      "name": "description",
+      "required": false,
+      "type": "string"
+    },
+    {
+      "description": "Opcjonalny ładunek JSON (treść encji).",
+      "name": "data",
+      "required": false,
+      "type": "object"
+    }
+  ],
+  "name": "CreateExampleEntityRequest",
+  "slug": "create-example-entity-request",
+  "tags": [
+    "backend",
+    "example-entity"
+  ]
+}

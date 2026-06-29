@@ -1,46 +1,45 @@
 /**
- * L8/L5 — entity detail panel (sidebar). Props (1.0.0 contract):
- * `{ slug, onDeleted, onRenamed, onBack }`. Here (unlike chip/card/row) you only get
- * `slug` + navigation callbacks — fetch the data with the `use__EntityName__BySlug` hook.
+ * M05 / L8 — detail panel. Fills the REQUIRED `detailPanel` slot (ViewKind `detail`).
+ * Props (1.0.0 contract): `{ slug, onDeleted, onRenamed, onBack }` — only the slug +
+ * navigation callbacks; the data is fetched with `useGetBySlug`. Renders the loading
+ * and "not found" states (`ac-detailpanel-usegetbyslug`).
  *
- * The view is framed with the Host UI Kit (`stable` core): `DetailPanelShell` for the
- * frame + breadcrumb, `FieldGrid`/`FieldRow` for the entity's fields. The kit is
- * pure-presentational — the plugin still owns the fetch (the hook below). These
- * components count into `hostApiVersion`; a prop mismatch is gated at build time.
+ * Framed with the Host UI Kit (`@c4s/plugin-runtime/ui`): `DetailPanelShell` (frame +
+ * breadcrumb — NO `title` prop; the header is the last breadcrumb segment) and
+ * `FieldGrid`/`FieldRow` (`FieldRow` takes its value as `children`).
  */
 
-import * as React from 'react';
-import type { EntityDetailProps } from '../../host';
-import { DetailPanelShell, FieldGrid, FieldRow } from '../../host';
-import { use__EntityName__BySlug } from './hooks';
+import type { FC } from 'react';
+import { DetailPanelShell, FieldGrid, FieldRow } from '@c4s/plugin-runtime/ui';
+import type { EntityDetailProps } from '@c4s/plugin-runtime';
+import { EXAMPLE_ENTITY_LABEL_PLURAL } from '../../identity';
+import { useGetBySlug } from './hooks';
 
-export const __EntityName__Detail: React.FC<EntityDetailProps> = ({
-  slug,
-  onDeleted,
-  onRenamed,
-  onBack,
-}) => {
-  const { data, isLoading } = use__EntityName__BySlug(slug);
-  const record = data as { title?: string } | null | undefined;
+export const ExampleEntityDetail: FC<EntityDetailProps> = ({ slug, onBack }) => {
+  const { data: entity, isLoading } = useGetBySlug(slug);
 
-  if (isLoading) return <div>Loading…</div>;
-  if (!record) return <div role="alert">Not found: {slug}</div>;
+  if (isLoading) return <div className="c4s-detail__loading">Loading…</div>;
+  if (!entity) {
+    return (
+      <div className="c4s-detail__not-found" role="alert" style={{ color: 'var(--c-muted, #6b7280)' }}>
+        Not found: <code>{slug}</code>
+      </div>
+    );
+  }
 
   return (
     <DetailPanelShell
-      breadcrumb={[
-        { label: '__ENTITY_TITLE__', onClick: onBack },
-        { label: record.title ?? slug /* TODO: label field */ },
-      ]}
+      breadcrumb={[{ label: EXAMPLE_ENTITY_LABEL_PLURAL, onClick: onBack }, { label: entity.name ?? slug }]}
     >
       <FieldGrid>
-        <FieldRow label="Slug">{slug}</FieldRow>
-        {/* TODO: pola swojej encji — <FieldRow label="...">{value}</FieldRow> */}
+        <FieldRow label="Slug">
+          <code>{entity.slug}</code>
+        </FieldRow>
+        <FieldRow label="Name">{entity.name}</FieldRow>
+        {entity.description ? <FieldRow label="Description">{entity.description}</FieldRow> : null}
+        <FieldRow label="Updated">{entity.updatedAt}</FieldRow>
       </FieldGrid>
-      {/* TODO: edit the entity's fields; on slug change call onRenamed(newSlug), on delete call onDeleted() */}
-      <p style={{ opacity: 0.6 }}>TODO: edit form. (available callbacks: onDeleted, onRenamed)</p>
-      {/* Reference the callbacks so they count as "used" in the stub: */}
-      <span hidden>{String(Boolean(onDeleted) && Boolean(onRenamed))}</span>
+      {/* TODO: an edit form would call the host's mutation flow (onRenamed/onDeleted). */}
     </DetailPanelShell>
   );
 };

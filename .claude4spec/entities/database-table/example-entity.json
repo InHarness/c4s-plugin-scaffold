@@ -1,0 +1,58 @@
+{
+  "columns": [
+    {
+      "description": "Kebab-case PK = slugify(name). Stabilny; rename tylko przez newSlug.",
+      "name": "slug",
+      "nullable": false,
+      "pk": true,
+      "type": "text",
+      "unique": true
+    },
+    {
+      "description": "Nazwa wyświetlana.",
+      "name": "name",
+      "nullable": false,
+      "type": "text"
+    },
+    {
+      "description": "Opcjonalny opis.",
+      "name": "description",
+      "nullable": true,
+      "type": "text"
+    },
+    {
+      "description": "Ładunek JSON serializowany jako TEXT (SQLite nie ma natywnego typu JSON).",
+      "name": "data",
+      "nullable": true,
+      "type": "text"
+    },
+    {
+      "description": "Znacznik utworzenia (ISO 8601).",
+      "name": "created_at",
+      "nullable": false,
+      "type": "text"
+    },
+    {
+      "description": "Znacznik ostatniej modyfikacji (ISO 8601).",
+      "name": "updated_at",
+      "nullable": false,
+      "type": "text"
+    }
+  ],
+  "description": "Indeks SQLite pochodny dla placeholdera example-entity (źródłem prawdy jest plik .json; tabela to indeks budowany migracjami L1, tylko-naprzód i idempotentnymi). Identyfikator SQL `example_entity` jest snake_case — nigdy słowo zarezerwowane `table`. DOSTOSUJ: w pluginie pochodnym zastąp własną tabelą i kolumnami modelu danych.",
+  "indexes": [
+    {
+      "columns": [
+        "name"
+      ],
+      "name": "idx_example_entity_name",
+      "unique": false
+    }
+  ],
+  "name": "example_entity",
+  "slug": "example-entity",
+  "tags": [
+    "backend",
+    "example-entity"
+  ]
+}

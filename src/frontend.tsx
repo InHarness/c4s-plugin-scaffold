@@ -1,34 +1,34 @@
 /**
- * Frontend ENTRY — loaded by the host as native ESM (via the `window.__c4s_shared`
- * import-map shim). Evaluating this module REGISTERS the entity's frontend module
- * as a side effect (`registerFrontendModule`).
+ * Frontend ENTRY — evaluating this module registers the frontend module as a side
+ * effect (`registerFrontendModule`). The host loads it as native ESM via the
+ * import-map shim; React/Tiptap/TanStack are externalized (provided by the host).
  *
- * KEY (1.0.0 contract): render components receive the
- * already-resolved entity in props (`{ slug, entity, onOpen }`); they do NOT
- * self-fetch. The module provides `useGetBySlug` and `listByTags` instead.
+ * The render slots receive a resolved entity in props (no self-fetch); screens use
+ * the data hooks. Identity here MUST match the backend contribution.
  */
 
-import * as React from 'react';
-import { registerFrontendModule } from './host';
-import type { FrontendModule } from './host';
+import type { FC } from 'react';
+import { registerFrontendModule } from '@c4s/plugin-runtime';
+import type { FrontendModule } from '@c4s/plugin-runtime';
 import {
-  __ENTITY_TYPE__,
-  __ENTITY_TABLE__,
-  __PATH_PREFIX__,
-  __ENTITY_LABEL__,
-  __ENTITY_LABEL_PLURAL__,
-  __DISPLAY_ORDER__,
-  __entity_type__SlugFrom,
+  EXAMPLE_ENTITY_TYPE,
+  EXAMPLE_ENTITY_TABLE,
+  EXAMPLE_ENTITY_LABEL,
+  EXAMPLE_ENTITY_LABEL_PLURAL,
+  EXAMPLE_ENTITY_DISPLAY_ORDER,
+  EXAMPLE_ENTITY_PATH_PREFIX,
+  exampleEntitySlugFrom,
 } from './identity';
-import { __EntityName__Chip } from './entity/frontend/render-chip';
-import { __EntityName__Card } from './entity/frontend/render-card';
-import { __EntityName__Row } from './entity/frontend/render-row';
-import { __EntityName__Detail } from './entity/frontend/detail-panel';
-import { use__EntityName__BySlug, list__EntityName__ByTags } from './entity/frontend/hooks';
-import { __entity_type__SlashCommand } from './entity/frontend/slash-command';
+import { ExampleEntityChip } from './entity/frontend/render-chip';
+import { ExampleEntityCard } from './entity/frontend/render-card';
+import { ExampleEntityRow } from './entity/frontend/render-row';
+import { ExampleEntityDetail } from './entity/frontend/detail-panel';
+import { exampleEntityRoutes } from './entity/frontend/routes';
+import { useGetBySlug, listByTags } from './entity/frontend/hooks';
+import { exampleEntitySlashCommand } from './entity/frontend/slash-command';
 
-/** Placeholder sidebar icon (no lucide-react dependency). TODO: replace. */
-const __EntityName__Icon: React.FC<{ className?: string; size?: number | string }> = ({
+/** Tiny inline icon (no `lucide-react` dependency) for the sidebar tab. */
+const ExampleEntityIcon: FC<{ className?: string; size?: number | string }> = ({
   className,
   size = 16,
 }) => (
@@ -39,45 +39,48 @@ const __EntityName__Icon: React.FC<{ className?: string; size?: number | string 
     viewBox="0 0 16 16"
     fill="none"
     stroke="currentColor"
-    strokeWidth={1.5}
+    strokeWidth="1.5"
     aria-hidden="true"
   >
-    <rect x="2.5" y="2.5" width="11" height="11" rx="2" />
+    <rect x="2.5" y="2.5" width="11" height="11" rx="2.5" />
+    <path d="M5 8h6M5 5.5h6M5 10.5h3" />
   </svg>
 );
 
-export const __EntityName__FrontendModule: FrontendModule = {
-  // ─── Identity (must match the backend) ───
-  type: __ENTITY_TYPE__,
-  table: __ENTITY_TABLE__,
-  label: __ENTITY_LABEL__,
-  labelPlural: __ENTITY_LABEL_PLURAL__,
-  displayOrder: __DISPLAY_ORDER__,
-  pathPrefix: __PATH_PREFIX__,
-  slugFrom: __entity_type__SlugFrom,
+export const ExampleEntityFrontendModule: FrontendModule = {
+  // ── Identity (must match the backend EntityContribution) ──
+  type: EXAMPLE_ENTITY_TYPE,
+  table: EXAMPLE_ENTITY_TABLE,
+  label: EXAMPLE_ENTITY_LABEL,
+  labelPlural: EXAMPLE_ENTITY_LABEL_PLURAL,
+  displayOrder: EXAMPLE_ENTITY_DISPLAY_ORDER,
+  pathPrefix: EXAMPLE_ENTITY_PATH_PREFIX,
+  slugFrom: exampleEntitySlugFrom,
 
-  // ─── L8 render slots (entity injected by the host) ───
-  renderChip: __EntityName__Chip,
-  renderCard: __EntityName__Card,
-  renderRow: __EntityName__Row,
-  detailPanel: __EntityName__Detail,
+  // ── Render slots (presentational; data via props/hooks only) ──
+  // Cast: the slot types use `EntityChipProps<unknown>`; our components are typed to
+  // the concrete snapshot for nicer internals.
+  renderChip: ExampleEntityChip as FrontendModule['renderChip'],
+  renderCard: ExampleEntityCard as FrontendModule['renderCard'],
+  renderRow: ExampleEntityRow as FrontendModule['renderRow'],
+  detailPanel: ExampleEntityDetail,
 
-  // ─── Data resolution (the host calls these slots) ───
-  useGetBySlug: use__EntityName__BySlug,
-  listByTags: list__EntityName__ByTags,
+  // ── Data resolution ──
+  useGetBySlug,
+  listByTags,
 
-  // ─── L5 — sidebar tab (optional; keep or remove) ───
+  // ── List-screen entry (sidebar tab) + editor extension ──
   sidebarTab: {
-    icon: __EntityName__Icon,
-    label: __ENTITY_LABEL_PLURAL__,
-    order: __DISPLAY_ORDER__,
+    icon: ExampleEntityIcon,
+    label: EXAMPLE_ENTITY_LABEL_PLURAL,
+    order: EXAMPLE_ENTITY_DISPLAY_ORDER,
   },
+  editorExtensions: [exampleEntitySlashCommand],
 
-  // ─── L8 — editor extensions (slash command). The host pins them onto its Tiptap. ───
-  editorExtensions: [__entity_type__SlashCommand],
+  // ── Page routes (list + detail), mounted into the host's single router ──
+  routes: exampleEntityRoutes,
 };
 
-// Register as a side effect when the frontend module is evaluated.
-registerFrontendModule(__EntityName__FrontendModule);
+registerFrontendModule(ExampleEntityFrontendModule);
 
-export default __EntityName__FrontendModule;
+export default ExampleEntityFrontendModule;
