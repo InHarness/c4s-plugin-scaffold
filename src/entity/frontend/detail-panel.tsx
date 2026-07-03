@@ -1,8 +1,19 @@
 /**
  * M05 / L8 — detail panel. Fills the REQUIRED `detailPanel` slot (ViewKind `detail`).
- * Props (1.0.0 contract): `{ slug, onDeleted, onRenamed, onBack }` — only the slug +
- * navigation callbacks; the data is fetched with `useGetBySlug`. Renders the loading
- * and "not found" states (`ac-detailpanel-usegetbyslug`).
+ * Props (1.1.0 contract): `{ slug; onDeleted?; onRenamed? }`. The host injects ONLY
+ * `slug`; the panel loads the entity with `useGetBySlug` and renders the loading and
+ * "not found" states (`ac-detailpanel-usegetbyslug`). `onDeleted?`/`onRenamed?` are
+ * OPTIONAL panel→host notifications — call them ONLY when the panel performs its own
+ * inline delete/rename, so the host can refresh the list/breadcrumb.
+ *
+ * There is NO `onBack`: back is owned by the host `DetailPanelShell` breadcrumb, not a
+ * panel prop. Cross-entity/section navigation goes through the host `editorBridge`
+ * singleton (`editorBridge.openEntity/openSection`, same as `render-card`/`render-chip`),
+ * never through injected `onOpenEntity`/`onOpenPage` props.
+ *
+ * NOTE: the 1.1.0 shape is declared locally — the installed `@c4s/plugin-runtime`
+ * still ships the 1.0.0 `EntityDetailProps` (required `onBack`); see the patch
+ * `v0-0-4-to-v0-0-5-pages-host-types-not-shipped.md`.
  *
  * Framed with the Host UI Kit (`@c4s/plugin-runtime/ui`): `DetailPanelShell` (frame +
  * breadcrumb — NO `title` prop; the header is the last breadcrumb segment) and
@@ -11,11 +22,17 @@
 
 import type { FC } from 'react';
 import { DetailPanelShell, FieldGrid, FieldRow } from '@c4s/plugin-runtime/ui';
-import type { EntityDetailProps } from '@c4s/plugin-runtime';
-import { EXAMPLE_ENTITY_LABEL_PLURAL } from '../../identity';
 import { useGetBySlug } from './hooks';
 
-export const ExampleEntityDetail: FC<EntityDetailProps> = ({ slug, onBack }) => {
+// Local 1.1.0 props contract: the host injects only `slug`; the callbacks are
+// optional panel→host notifications.
+type EntityDetailProps = {
+  slug: string;
+  onDeleted?: () => void;
+  onRenamed?: (newSlug: string) => void;
+};
+
+export const ExampleEntityDetail: FC<EntityDetailProps> = ({ slug }) => {
   const { data: entity, isLoading } = useGetBySlug(slug);
 
   if (isLoading) return <div className="c4s-detail__loading">Loading…</div>;
@@ -29,7 +46,9 @@ export const ExampleEntityDetail: FC<EntityDetailProps> = ({ slug, onBack }) => 
 
   return (
     <DetailPanelShell
-      breadcrumb={[{ label: EXAMPLE_ENTITY_LABEL_PLURAL, onClick: onBack }, { label: entity.name ?? slug }]}
+      // Single current-entity crumb, no back hop: back is host-owned
+      // (`DetailPanelShell`), the panel does not build an `onBack` breadcrumb.
+      breadcrumb={[{ label: entity.name ?? slug }]}
     >
       <FieldGrid>
         <FieldRow label="Slug">
@@ -39,7 +58,10 @@ export const ExampleEntityDetail: FC<EntityDetailProps> = ({ slug, onBack }) => 
         {entity.description ? <FieldRow label="Description">{entity.description}</FieldRow> : null}
         <FieldRow label="Updated">{entity.updatedAt}</FieldRow>
       </FieldGrid>
-      {/* TODO: an edit form would call the host's mutation flow (onRenamed/onDeleted). */}
+      {/* TODO: an inline edit/delete form would call the OPTIONAL notifications
+          `onRenamed?`/`onDeleted?` after its own mutation; the destructive delete
+          CONFIRM stays host-owned. Cross-entity/section nav uses the host
+          `editorBridge` singleton (`openEntity`/`openSection`), not props. */}
     </DetailPanelShell>
   );
 };

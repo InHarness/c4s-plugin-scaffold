@@ -7,7 +7,6 @@
  * the data hooks. Identity here MUST match the backend contribution.
  */
 
-import type { FC } from 'react';
 import { registerFrontendModule } from '@c4s/plugin-runtime';
 import type { FrontendModule } from '@c4s/plugin-runtime';
 import {
@@ -26,26 +25,8 @@ import { ExampleEntityDetail } from './entity/frontend/detail-panel';
 import { exampleEntityRoutes } from './entity/frontend/routes';
 import { useGetBySlug, listByTags } from './entity/frontend/hooks';
 import { exampleEntitySlashCommand } from './entity/frontend/slash-command';
-
-/** Tiny inline icon (no `lucide-react` dependency) for the sidebar tab. */
-const ExampleEntityIcon: FC<{ className?: string; size?: number | string }> = ({
-  className,
-  size = 16,
-}) => (
-  <svg
-    className={className}
-    width={size}
-    height={size}
-    viewBox="0 0 16 16"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.5"
-    aria-hidden="true"
-  >
-    <rect x="2.5" y="2.5" width="11" height="11" rx="2.5" />
-    <path d="M5 8h6M5 5.5h6M5 10.5h3" />
-  </svg>
-);
+// ONE shared icon reference for both the sidebar tab and the list header.
+import { ExampleEntityIcon } from './entity/frontend/icon';
 
 export const ExampleEntityFrontendModule: FrontendModule = {
   // ── Identity (must match the backend EntityContribution) ──
@@ -63,7 +44,9 @@ export const ExampleEntityFrontendModule: FrontendModule = {
   renderChip: ExampleEntityChip as FrontendModule['renderChip'],
   renderCard: ExampleEntityCard as FrontendModule['renderCard'],
   renderRow: ExampleEntityRow as FrontendModule['renderRow'],
-  detailPanel: ExampleEntityDetail,
+  // Cast: the panel declares the 1.1.0 props locally (`{ slug; onDeleted?; onRenamed? }`);
+  // the installed slot type is still the 1.0.0 `EntityDetailProps` (required `onBack`).
+  detailPanel: ExampleEntityDetail as FrontendModule['detailPanel'],
 
   // ── Data resolution ──
   useGetBySlug,
