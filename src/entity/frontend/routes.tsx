@@ -29,8 +29,10 @@ import { createRoute, useNavigate, useParams } from '@tanstack/react-router';
 import { ActionButton, EmptyState, EntityListHeader, EntityListLayout, LoadingState, TagFilterBar } from '@c4s/plugin-runtime/ui';
 import type { Tag } from '@c4s/plugin-runtime/ui';
 import type { RouteTreeFragment } from '@c4s/plugin-runtime';
-import { EXAMPLE_ENTITY_LABEL_PLURAL, EXAMPLE_ENTITY_PATH_PREFIX } from '../../identity';
+import { EXAMPLE_ENTITY_LABEL_PLURAL, EXAMPLE_ENTITY_PATH_PREFIX, EXAMPLE_ENTITY_TYPE } from '../../identity';
 import { useExampleEntityList } from './hooks';
+import { navigateToEntity } from './navigation';
+import type { Navigate } from './navigation';
 import { ExampleEntityIcon } from './icon';
 import { ExampleEntityRow } from './render-row';
 import { ExampleEntityCreateDialog } from './create-dialog';
@@ -42,9 +44,6 @@ const Pane: FC<{ children: ReactNode }> = ({ children }) => (
     {children}
   </main>
 );
-
-// Loose-typed view of the host router (the contract leaves routes opaque).
-type Navigate = (opts: { to: string; params?: Record<string, string>; replace?: boolean }) => void;
 
 function ExampleEntityListRoute(): JSX.Element {
   const navigate = useNavigate() as Navigate;
@@ -128,7 +127,7 @@ function ExampleEntityListRoute(): JSX.Element {
                     updatedAt: item.updatedAt,
                   } as ExampleEntitySnapshot
                 }
-                onOpen={() => navigate({ to: `${EXAMPLE_ENTITY_PATH_PREFIX}/$slug`, params: { slug: item.slug } })}
+                onOpen={() => navigateToEntity(navigate, EXAMPLE_ENTITY_TYPE, item.slug)}
               />
             ))}
           </div>
@@ -147,14 +146,14 @@ function ExampleEntityDetailRoute(): JSX.Element {
   return (
     <Pane>
       <ExampleEntityDetail
+        // `key={slug}` resets the panel's draft when navigating between entities.
+        key={slug}
         slug={slug}
         // No `onBack`: back is host-owned (`DetailPanelShell` breadcrumb). The
         // wrapper stands in for the host's list/breadcrumb refresh, wiring the
         // OPTIONAL `onDeleted?`/`onRenamed?` notifications to router navigation.
         onDeleted={() => navigate({ to: EXAMPLE_ENTITY_PATH_PREFIX })}
-        onRenamed={(newSlug) =>
-          navigate({ to: `${EXAMPLE_ENTITY_PATH_PREFIX}/$slug`, params: { slug: newSlug }, replace: true })
-        }
+        onRenamed={(newSlug) => navigateToEntity(navigate, EXAMPLE_ENTITY_TYPE, newSlug, { replace: true })}
       />
     </Pane>
   );

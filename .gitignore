@@ -7,3 +7,6 @@ node_modules
 dist/
 *.tsbuildinfo
 .DS_Store
+
+# per-brief git worktrees (see .claude/skills/c4s-brief-implementer)
+.worktrees/
