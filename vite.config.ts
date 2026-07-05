@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 import dts from 'vite-plugin-dts';
 
 /**
- * Vite library mode (brief section 7).
+ * Vite library mode.
  *
  * Two entries: `src/index.ts` (backend, consumed by the host loader) and
  * `src/frontend.tsx` (frontend, loaded as native ESM via the host's import-map

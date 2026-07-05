@@ -1,107 +1,91 @@
 /**
- * L4 — the entity's Express router, written BY HAND (the host-side `createCrudRouter`
- * helper is deferred). Mounted in `mount(ctx)` via `ctx.app.use(pathPrefix, …)`; the
- * host prepends `/api/projects/:id`. CRUD + `POST /:slug/restore`.
+ * L4 — Express router for `example-entity`, mounted under `pathPrefix`
+ * (`/example-entities`; the host prepends `/api/projects/:id`). Six routes:
+ *
+ *   GET    /            → list  (ExampleEntityListItem[], no `data`)  200
+ *   POST   /            → create (slug = slugify(name))               201
+ *   GET    /:slug       → detail (full snapshot)                      200 / 404
+ *   PATCH  /:slug       → update (rename only via newSlug)            200 / 404
+ *   DELETE /:slug       → remove (hard delete, no FK cascade)         204
+ *   POST   /:slug/restore → idempotent UPSERT from a snapshot         200
  */
 
-import { Router, type Request, type Response, type NextFunction } from 'express';
-import type { MountContext } from '../../host';
-import { __ENTITY_TYPE__ } from '../../identity';
-import type { __EntityName__Record, __EntityName__Service } from './services';
+import { Router } from 'express';
+import type { Request, Response } from 'express';
+import type { MountContext } from '@c4s/plugin-runtime';
+import type {
+  CreateExampleEntityRequest,
+  ExampleEntitySnapshot,
+  UpdateExampleEntityRequest,
+} from '../dto';
+import { ExampleEntityService } from './services';
 
-export function create__EntityName__Router(
-  service: __EntityName__Service,
-  ctx: MountContext,
+function notFound(res: Response): Response {
+  return res.status(404).json({ error: { code: 'NOT_FOUND' } });
+}
+
+/** Parse a `?tags=a,b,c` CSV query into a trimmed, non-empty string[]. */
+function parseTags(raw: unknown): string[] {
+  if (typeof raw !== 'string' || !raw.trim()) return [];
+  return raw
+    .split(',')
+    .map((t) => t.trim())
+    .filter(Boolean);
+}
+
+function parseFilter(raw: unknown): 'and' | 'or' {
+  return raw === 'and' ? 'and' : 'or';
+}
+
+export function createExampleEntityRouter(
+  service: ExampleEntityService,
+  _ctx: MountContext,
 ): Router {
   const router = Router();
-  const broadcast = (slug: string) =>
-    ctx.ws.broadcast({ kind: 'entity:changed', entityType: __ENTITY_TYPE__, slug });
 
-  // LIST
-  router.get('/', (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const q = req.query;
-      const tags = typeof q.tags === 'string' ? q.tags.split(',').filter(Boolean) : undefined;
-      const tagFilter = q.tagFilter === 'and' || q.tagFilter === 'or' ? q.tagFilter : undefined;
-      res.json({
-        items: service.list({
-          tags,
-          tagFilter,
-          search: typeof q.search === 'string' ? q.search : undefined,
-          limit: q.limit ? Number(q.limit) : undefined,
-          offset: q.offset ? Number(q.offset) : undefined,
-        }),
-      });
-    } catch (err) {
-      next(err);
-    }
+  // GET / — lightweight list, optional tag filter.
+  router.get('/', async (req: Request, res: Response) => {
+    const items = await service.list({
+      tags: parseTags(req.query.tags),
+      filter: parseFilter(req.query.filter),
+    });
+    res.status(200).json(items);
   });
 
-  // CREATE
-  router.post('/', (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const record = service.create((req.body ?? {}) as Partial<__EntityName__Record>, 'user');
-      broadcast(record.slug);
-      res.status(201).json(record);
-    } catch (err) {
-      next(err);
-    }
+  // POST / — create; 201 with the full snapshot.
+  router.post('/', (req: Request, res: Response) => {
+    const body = (req.body ?? {}) as CreateExampleEntityRequest;
+    const snapshot = service.create(body, 'user');
+    res.status(201).json(snapshot);
   });
 
-  // READ
-  router.get('/:slug', (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const record = service.getBySlug(req.params.slug);
-      if (!record) {
-        return res
-          .status(404)
-          .json({ error: { code: 'NOT_FOUND', message: '__entity_type__ not found' } });
-      }
-      res.json(record);
-    } catch (err) {
-      next(err);
-    }
+  // GET /:slug — detail; 404 when the slug is unknown.
+  router.get('/:slug', (req: Request, res: Response) => {
+    const snapshot = service.getBySlug(String(req.params.slug));
+    if (!snapshot) return notFound(res);
+    res.status(200).json(snapshot);
   });
 
-  // UPDATE (rename only via body.newSlug)
-  router.patch('/:slug', (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { record, previousSlug } = service.update(
-        req.params.slug,
-        (req.body ?? {}) as Partial<__EntityName__Record> & { newSlug?: string },
-        'user',
-      );
-      if (record.slug !== previousSlug) {
-        // TODO: ctx.referencesService.propagateSlugChange(__ENTITY_TYPE__, previousSlug, record.slug)
-        broadcast(previousSlug);
-      }
-      broadcast(record.slug);
-      res.json(record);
-    } catch (err) {
-      next(err);
-    }
+  // PATCH /:slug — partial update; rename only via newSlug.
+  router.patch('/:slug', (req: Request, res: Response) => {
+    const body = (req.body ?? {}) as UpdateExampleEntityRequest;
+    const result = service.update(String(req.params.slug), body, 'user');
+    if (!result) return notFound(res);
+    res.status(200).json(result.snapshot);
   });
 
-  // DELETE
-  router.delete('/:slug', (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const result = service.remove(req.params.slug, 'user');
-      broadcast(req.params.slug);
-      res.json(result);
-    } catch (err) {
-      next(err);
-    }
+  // DELETE /:slug — hard delete, 204, no cascade (dangling refs only reported).
+  router.delete('/:slug', (req: Request, res: Response) => {
+    const { deleted } = service.remove(String(req.params.slug), 'user');
+    if (!deleted) return notFound(res);
+    res.status(204).send();
   });
 
-  // RESTORE (from an L9 snapshot / release)
-  router.post('/:slug/restore', (req: Request, res: Response, next: NextFunction) => {
-    try {
-      // TODO: deserialize the snapshot and UPSERT through the service (idempotently).
-      broadcast(req.params.slug);
-      res.json({ restored: true, slug: req.params.slug });
-    } catch (err) {
-      next(err);
-    }
+  // POST /:slug/restore — idempotent UPSERT from a snapshot.
+  router.post('/:slug/restore', (req: Request, res: Response) => {
+    const snapshot = { ...(req.body as ExampleEntitySnapshot), slug: String(req.params.slug) };
+    service.restore(snapshot);
+    res.status(200).json(service.getBySlug(snapshot.slug));
   });
 
   return router;

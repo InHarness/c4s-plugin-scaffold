@@ -1,5 +1,6 @@
+/// <reference types="@inharness-ai/claude4spec/plugin-runtime/ambient" />
 /**
- * Backend ENTRY — imported by the host loader (`await import("__plugin_name__")`).
+ * Backend ENTRY — imported by the host loader (`await import("c4s-plugin-scaffold")`).
  *
  * Exports the manifest both as DEFAULT and as a named `manifest` export (the loader
  * accepts either: `mod.manifest ?? mod.default`).

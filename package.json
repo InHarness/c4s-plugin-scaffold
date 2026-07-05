@@ -1,16 +1,18 @@
 {
   "name": "c4s-plugin-scaffold",
-  "version": "0.0.0",
-  "description": "Empty claude4spec plugin scaffold (host API 1.0.0). Replace the __* placeholders and add your logic.",
+  "version": "0.0.1",
+  "description": "Empty claude4spec plugin scaffold (host API 1.0.0). One placeholder entity type `example-entity` — degit, run the rename-map, and add your logic.",
   "type": "module",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     },
     "./frontend": {
       "types": "./dist/frontend.d.ts",
-      "import": "./dist/frontend.js"
+      "import": "./dist/frontend.js",
+      "default": "./dist/frontend.js"
     }
   },
   "main": "./dist/index.js",
@@ -22,7 +24,6 @@
   "scripts": {
     "build": "vite build",
     "dev": "vite build --watch",
-    "dev:link": "node scripts/link-into-host.mjs",
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
@@ -38,18 +39,36 @@
     "zod": "^3.0.0"
   },
   "peerDependenciesMeta": {
-    "@c4s/plugin-runtime": { "optional": true },
-    "@inharness-ai/agent-adapters": { "optional": true },
-    "@tanstack/react-query": { "optional": true },
-    "@tanstack/react-router": { "optional": true },
-    "@tiptap/core": { "optional": true },
-    "better-sqlite3": { "optional": true },
-    "express": { "optional": true },
-    "zod": { "optional": true }
+    "@c4s/plugin-runtime": {
+      "optional": true
+    },
+    "@inharness-ai/agent-adapters": {
+      "optional": true
+    },
+    "@tanstack/react-query": {
+      "optional": true
+    },
+    "@tanstack/react-router": {
+      "optional": true
+    },
+    "@tiptap/core": {
+      "optional": true
+    },
+    "better-sqlite3": {
+      "optional": true
+    },
+    "express": {
+      "optional": true
+    },
+    "zod": {
+      "optional": true
+    }
   },
   "devDependencies": {
+    "@inharness-ai/agent-adapters": "^0.8.4",
     "@inharness-ai/claude4spec": "^1.0.22",
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "@types/express": "^5.0.6",
     "@types/node": "^20.0.0",
     "@types/react": "^18.0.0",
     "@types/react-dom": "^18.0.0",

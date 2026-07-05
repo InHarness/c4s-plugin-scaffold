@@ -1,18 +1,14 @@
 /**
- * `contributes.commands` — stub for a declarative slash command (for entity-less
- * plugins or global commands). The loader normalizes the entry into an
- * `EditorExtensionRegistration.slashCommand` and routes it the same way as entity
- * commands. Declarative: you declare the trigger + popover; the framework executes it.
- *
- * (The entity command `/__entity_type__` lives separately in `entity/frontend/slash-command.ts`.)
+ * `contributes.commands` (declarative slash). ALWAYS registered — not filtered by
+ * `config.entities` (`ac-config-entities-filter`). A plugin-level command, distinct
+ * from the entity's editor slash command (`src/entity/frontend/slash-command.ts`).
  */
 
-import type { PluginCommandContribution } from '../host';
+import type { PluginCommandContribution } from '@c4s/plugin-runtime';
 
 export const commandStub: PluginCommandContribution = {
-  name: '__plugin_name__-noop',
-  trigger: '__entity_type__-cmd',
-  label: '/__entity_type__-cmd',
-  popoverKind: 'todo-popover', // TODO: a real client PopoverKind
-  // availableIn: ['page'],
+  name: 'c4s-plugin-scaffold-noop',
+  trigger: 'example-entity-cmd',
+  label: '/example-entity-cmd',
+  popoverKind: 'todo-popover',
 };

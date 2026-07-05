@@ -1,149 +1,107 @@
 /**
- * L3 — the entity's MCP server. Mounted by the host as `${type}-tools` (the factory
- * runs once per agent turn → a fresh instance). Five CRUD tools; bodies delegate to
- * the service (TODO). Contract from `@inharness-ai/agent-adapters`: `createMcpServer`,
- * `mcpTool` (schema = a zod object), the handler returns
- * `{ content: [{ type:'text', text: JSON.stringify(...) }], isError? }`.
+ * L3 — MCP tools server for `example-entity`, exposed to the agent as
+ * `example-entity-tools`. Registered as a FACTORY in `entity/index.ts`
+ * (`ctx.registerMcpServer('example-entity-tools', () => createExampleEntityToolsServer(...))`)
+ * so the host can instantiate a fresh server per context — no shared global state
+ * (`ac-mcp-factory`).
+ *
+ * Five tools mirror the CRUD service. Tool names are prefixed with the type:
+ * `create_example_entity`, `get_example_entity`, … (snake_case, agent-friendly).
  */
 
-import { createMcpServer, mcpTool, type McpServerInstance } from '@inharness-ai/agent-adapters';
+import { createMcpServer, mcpTool } from '@inharness-ai/agent-adapters';
+import type { McpServerInstance } from '@inharness-ai/agent-adapters';
 import { z } from 'zod';
-import type { MountContext } from '../../host';
-import { __ENTITY_TYPE__ } from '../../identity';
-import type { __EntityName__Service } from './services';
+import type { MountContext } from '@c4s/plugin-runtime';
+import type { ExampleEntityService } from './services';
 
-export function create__EntityName__ToolsServer(
-  service: __EntityName__Service,
-  ctx: MountContext,
+function ok(payload: unknown) {
+  return { content: [{ type: 'text', text: JSON.stringify(payload) }] };
+}
+function fail(message: string) {
+  return { content: [{ type: 'text', text: JSON.stringify({ error: message }) }], isError: true };
+}
+
+export function createExampleEntityToolsServer(
+  service: ExampleEntityService,
+  _ctx: MountContext,
 ): McpServerInstance {
-  const ok = (payload: unknown) => ({
-    content: [{ type: 'text' as const, text: JSON.stringify(payload) }],
-  });
-  const fail = (err: unknown) => ({
-    content: [
-      {
-        type: 'text' as const,
-        text: JSON.stringify({ error: err instanceof Error ? err.message : String(err) }),
+  const tools = [
+    mcpTool(
+      'create_example_entity',
+      'Create an example-entity. The slug is derived from the name (slugify); it is not accepted as input.',
+      { name: z.string(), description: z.string().optional(), data: z.record(z.unknown()).optional() },
+      async (args) =>
+        ok(
+          service.create({
+            name: String(args.name),
+            description: args.description as string | undefined,
+            data: args.data as Record<string, unknown> | undefined,
+          }, 'agent'),
+        ),
+    ),
+
+    mcpTool(
+      'get_example_entity',
+      'Fetch a single example-entity snapshot by slug.',
+      { slug: z.string() },
+      async (args) => {
+        const snapshot = service.getBySlug(String(args.slug));
+        return snapshot ? ok(snapshot) : fail(`example-entity not found: ${String(args.slug)}`);
       },
-    ],
-    isError: true,
-  });
+    ),
 
-  // Notify the UI about an entity change (chips in chat/editor re-fetch).
-  const broadcast = (slug: string) =>
-    ctx.ws.broadcast({ kind: 'entity:changed', entityType: __ENTITY_TYPE__, slug });
-
-  const create___entity_type__ = mcpTool(
-    'create___entity_type__',
-    'Create a new __entity_type__. Generates a slug. TODO: describe the domain.',
-    {
-      // TODO: replace with your entity's fields.
-      title: z.string().describe('Item label'),
-      slug: z.string().optional(),
-    },
-    async (args) => {
-      try {
-        const record = service.create(
-          { title: args.title as string, slug: args.slug as string | undefined },
-          'agent',
-        );
-        broadcast(record.slug);
-        return ok({ slug: record.slug, type: __ENTITY_TYPE__ });
-      } catch (err) {
-        return fail(err);
-      }
-    },
-  );
-
-  const get___entity_type__ = mcpTool(
-    'get___entity_type__',
-    'Get a __entity_type__ by slug.',
-    { slug: z.string() },
-    async (args) => {
-      const record = service.getBySlug(String(args.slug));
-      if (!record) return fail(new Error(`__entity_type__ '${String(args.slug)}' not found`));
-      return ok(record);
-    },
-  );
-
-  const update___entity_type__ = mcpTool(
-    'update___entity_type__',
-    'Update a __entity_type__ (partial). Changing the label never moves the slug; rename via newSlug.',
-    {
-      slug: z.string(),
-      data: z.object({ title: z.string().optional() }).describe('Fields to change'),
-      newSlug: z.string().optional().describe('Explicit slug rename'),
-    },
-    async (args) => {
-      try {
-        const data = (args.data ?? {}) as { title?: string };
-        const { record, previousSlug } = service.update(
+    mcpTool(
+      'update_example_entity',
+      'Patch an example-entity. A name change does not move the slug; pass newSlug to rename.',
+      {
+        slug: z.string(),
+        name: z.string().optional(),
+        description: z.string().optional(),
+        data: z.record(z.unknown()).optional(),
+        newSlug: z.string().optional(),
+      },
+      async (args) => {
+        const result = service.update(
           String(args.slug),
-          { title: data.title, newSlug: args.newSlug as string | undefined },
+          {
+            name: args.name as string | undefined,
+            description: args.description as string | undefined,
+            data: args.data as Record<string, unknown> | undefined,
+            newSlug: args.newSlug as string | undefined,
+          },
           'agent',
         );
-        if (record.slug !== previousSlug) {
-          // TODO: await ctx.referencesService.propagateSlugChange(__ENTITY_TYPE__, previousSlug, record.slug);
-          broadcast(previousSlug);
-        }
-        broadcast(record.slug);
-        return ok({ slug: record.slug, updated: true });
-      } catch (err) {
-        return fail(err);
-      }
-    },
-  );
+        return result ? ok(result.snapshot) : fail(`example-entity not found: ${String(args.slug)}`);
+      },
+    ),
 
-  const delete___entity_type__ = mcpTool(
-    'delete___entity_type__',
-    'Delete a __entity_type__ by slug.',
-    { slug: z.string() },
-    async (args) => {
-      try {
-        const slug = String(args.slug);
-        const result = service.remove(slug, 'agent');
-        broadcast(slug);
-        return ok(result);
-      } catch (err) {
-        return fail(err);
-      }
-    },
-  );
+    mcpTool(
+      'delete_example_entity',
+      'Hard-delete an example-entity. References are not cascaded — dangling refs are reported.',
+      { slug: z.string() },
+      async (args) => {
+        const result = service.remove(String(args.slug), 'agent');
+        return result.deleted ? ok(result) : fail(`example-entity not found: ${String(args.slug)}`);
+      },
+    ),
 
-  const list___entity_type__ = mcpTool(
-    'list___entity_type__',
-    'List __entity_type__ items (optional filters: tags/tagFilter/search).',
-    {
-      tags: z.array(z.string()).optional(),
-      tagFilter: z.enum(['and', 'or']).optional(),
-      search: z.string().optional(),
-      limit: z.number().optional(),
-      offset: z.number().optional(),
-    },
-    async (args) => {
-      try {
-        const list = service.list({
-          tags: args.tags as string[] | undefined,
-          tagFilter: args.tagFilter as 'and' | 'or' | undefined,
-          search: args.search as string | undefined,
-          limit: args.limit as number | undefined,
-          offset: args.offset as number | undefined,
-        });
-        return ok({ items: list, total: list.length });
-      } catch (err) {
-        return fail(err);
-      }
-    },
-  );
+    mcpTool(
+      'list_example_entity',
+      'List example-entities (lightweight items, no data), optionally filtered by tags.',
+      {
+        tags: z.array(z.string()).optional(),
+        filter: z.enum(['and', 'or']).optional(),
+      },
+      async (args) =>
+        ok(
+          await service.list({
+            tags: (args.tags as string[] | undefined) ?? [],
+            filter: (args.filter as 'and' | 'or' | undefined) ?? 'or',
+          }),
+        ),
+    ),
+  ];
 
-  return createMcpServer({
-    name: `${__ENTITY_TYPE__}-tools`,
-    tools: [
-      create___entity_type__,
-      get___entity_type__,
-      update___entity_type__,
-      delete___entity_type__,
-      list___entity_type__,
-    ],
-  });
+  return createMcpServer({ name: 'example-entity-tools', tools });
 }

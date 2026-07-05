@@ -1,17 +1,22 @@
 /**
- * `contributes.writingStyles` — stub (M15). The loader fans styles out to each
- * project's `SkillRegistry` as `source: "plugin"`. `content` = the SKILL.md body
- * (without frontmatter). TODO: fill in a real style or remove it from the manifest.
+ * `contributes.writingStyles` (M15). ALWAYS registered — `config.entities` does NOT
+ * filter it (`ac-config-entities-filter`). The scaffold ships the meta writing-style
+ * that documents how to write a C4S plugin spec; rename its `slug` if you fork it.
  */
 
-import type { WritingStyleContribution } from '../host';
+import type { WritingStyleContribution } from '@c4s/plugin-runtime';
 
 export const writingStyleStub: WritingStyleContribution = {
-  slug: '__entity_type__-style',
-  title: '__ENTITY_TITLE__ style',
-  description: 'TODO: description of the writing style this plugin contributes.',
+  slug: 'styl-specyfikacji-pluginu-c4s',
+  title: 'Styl specyfikacji pluginu C4S',
+  description:
+    'Zasady pisania specyfikacji pluginu C4S — odwzorowanie realnej budowy pluginu (koperta → contributes → sloty, warstwy L1–L9 + M05).',
   version: 1,
-  language: 'en',
-  content: '# __ENTITY_TITLE__ writing style\n\nTODO: SKILL.md body (without frontmatter).\n',
-  // files: { 'examples/example.md': '…' }, // optional attachments
+  language: 'pl',
+  content:
+    '# Styl specyfikacji pluginu C4S\n\n' +
+    'Specyfikacja ma odwzorowywać realną budowę pluginu: koperta (PluginManifest) → ' +
+    'contributes.* → sloty typu encji; warstwy L1–L9 + M05. Wiąż narrację z realnymi ' +
+    'encjami przez osadzenia, nie wklejaj tabel pól. Każde AC = jedno obserwowalne ' +
+    'zachowanie pinowane przez verifies[].\n',
 };

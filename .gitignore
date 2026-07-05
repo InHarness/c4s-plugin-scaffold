@@ -1,4 +1,12 @@
-node_modules/
+# claude4spec (auto-added)
+.claude4spec/mcp.json
+*.deprecated
+node_modules
+
+# build output / OS cruft
 dist/
 *.tsbuildinfo
 .DS_Store
+
+# per-brief git worktrees (see .claude/skills/c4s-brief-implementer)
+.worktrees/
