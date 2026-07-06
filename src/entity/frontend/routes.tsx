@@ -97,14 +97,19 @@ function ExampleEntityListRoute(): JSX.Element {
   const [createOpen, setCreateOpen] = useState(false);
   const closeCreate = useCallback(() => setCreateOpen(false), []);
 
-  // Tag universe comes from the host's tag catalog; the bar stays hidden (below)
-  // when the project has no tags at all. `useTags()`'s `TagListItem` (from
+  // Tag universe comes from the host's tag catalog narrowed to tags actually
+  // used on `example-entity` items (`counts[EXAMPLE_ENTITY_TYPE] > 0`) — the
+  // bar stays hidden (below) when THIS list's entities carry no tags, not
+  // merely when the project has none at all. `useTags()`'s `TagListItem` (from
   // `@c4s/plugin-runtime`) lacks `createdAt`/`updatedAt` present on `Tag` (from
   // `@c4s/plugin-runtime/ui`) even though they're meant to be the same shape —
   // a host type-surface drift; `TagFilterBar`/`EntityListRow` never read either
   // field, so the assertion is safe (see the filed patch for the upstream gap).
   const tagCatalog = useTags();
-  const tagUniverse = useMemo<Tag[]>(() => (tagCatalog.data ?? []) as Tag[], [tagCatalog.data]);
+  const tagUniverse = useMemo<Tag[]>(
+    () => ((tagCatalog.data ?? []) as Tag[]).filter((t) => (t.counts[EXAMPLE_ENTITY_TYPE] ?? 0) > 0),
+    [tagCatalog.data],
+  );
   // Rows' chip lookup is derived from the same universe, not built ad hoc per row.
   const tagLookup = useMemo(() => new Map(tagUniverse.map((t) => [t.slug, t] as const)), [tagUniverse]);
 
