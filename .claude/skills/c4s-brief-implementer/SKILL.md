@@ -1,232 +1,99 @@
 ---
 name: c4s-brief-implementer
-description: >-
-  Implement features described in claude4spec briefs (markdown files in
-  .claude4spec/briefs/). Briefs are self-contained — they include all context
-  needed for implementation (entity snapshots, section diffs, narrative). After
-  implementation, if you discover drift between the brief and reality (missing
-  details, incorrect assumptions, edge cases not covered), generate a patch file
-  in .claude4spec/patches/ as feedback for the specification author. Use when
-  implementing changes in a code repository that has a .claude4spec/briefs/
-  directory.
+description: Implement features described in claude4spec briefs. Briefs are self-contained markdown files (entity snapshots, section diffs, narrative) that live in the companion specification repository, reached from your code repo via the c4s CLI (c4s list-briefs / read-brief, with --project and --workspace baked in). After implementation, if you discover drift between the brief and reality (missing details, incorrect assumptions, edge cases not covered), file a patch via c4s file-patch as feedback for the specification author. Use when implementing a claude4spec brief in a code repository.
 ---
 
-<!-- anchor: gqgxb9x4 -->
 # c4s-brief-implementer
 
-This skill describes how to implement a release brief in **your code repository**
-(not the spec repo). A brief is a self-contained markdown file under
-`.claude4spec/briefs/` that captures everything you need to ship the change:
-entity snapshots, section diffs, narrative, acceptance criteria.
+This skill describes how to implement a release brief in **your code repository** (not the spec repo). A brief is a self-contained markdown file that captures everything you need to ship the change: entity snapshots, section diffs, narrative, acceptance criteria. Briefs live in the **spec** repository, a different repo from the one you are working in — you never touch it directly; the `c4s` CLI reaches everything for you.
 
-**This skill does NOT assume the `c4s` CLI is installed.** Briefs are designed
-to be self-contained — you do not need to read the main specification or query
-the entity database. If the brief references something you cannot find in its
-body, treat that as drift and file a patch (step 5 below).
+**Reaching the briefs.** This skill is **CLI-only**: it reaches the briefs and writes patches solely through the `c4s` CLI, with the spec project's identity baked into this skill (`--project 'c4s-plugin-scaffold' --workspace 'default'`) — `c4s list-briefs` / `c4s read-brief` / `c4s file-patch` work from any directory, without a running server (they are filesystem-scoped). If `c4s` is not installed, **stop** and ask the user to install it — do not read or write the spec repo's files by hand.
 
-<!-- anchor: diryx7my -->
+**The brief is self-contained.** You do not need to read the main specification or query the entity database — everything is in the brief body. If the brief references something you cannot find in its body, treat that as drift and file a patch (step 4 below).
+
 ## Workflow
 
-<!-- anchor: d4bgs4fh -->
 ### 1. Discover
 
+List the briefs through `c4s` (paginated — briefs accumulate over time, so filter and page rather than dumping everything):
+
 ```sh
-ls .claude4spec/briefs/        # list available briefs
-cat .claude4spec/briefs/<slug>.md
+c4s list-briefs --status pending --limit 10 --project 'c4s-plugin-scaffold' --workspace 'default'
 ```
 
-If `.claude4spec/` is not in your current directory, walk up the directory tree
-until you find it (similar to how git finds `.git/`).
+`--status pending` hides briefs already marked `implemented: true`; drop it to see all. Use `--offset` to page. Output lists each brief's `path` (which you pass to `read-brief`) and whether it is already implemented.
 
-<!-- anchor: dkqgkgty -->
+**Which brief do I implement?** If the user named a brief, use it. If not — and `list-briefs` returns more than one pending brief — **ask the user which one**; do NOT guess. Picking the wrong brief wastes an implementation pass. Only proceed automatically when there is exactly one obvious candidate (a single pending brief, or the user pointed at one).
+
 ### 2. Read the brief as self-contained input
 
-Every brief has YAML frontmatter:
-
-```yaml
----
-type: brief
-from_release: v0.1.16
-to_release: v0.1.17
-generator_version: brief-author@0.1
-implemented: false
----
-```
-
-The body contains everything you need — entity snapshots, section diffs, the
-narrative of what changes, and acceptance criteria. **Do not read the main
-specification.**
-
-If the brief is unclear — a missing detail, an ambiguous wording, a decision
-you'd otherwise have to guess — you have two paths:
-
-**Synchronous (preferred when available).** Ask the specification agent in the
-same terminal and continue once you have an answer. There are two synchronous
-paths — pick by *what context* you need the agent to see:
-
-**Path A (preferred) — brief context.** Ask in the context of the specific brief
-plus its release diff. The agent sees only the brief and what changed in that
-brief's window — i.e. exactly the scope you are implementing. `c4s ask` does
-**not** accept `--ct`/`--brief` (it is a narrowed alias with `contextType='ask'`
-hard-wired); the brief-context path is `c4s agent`:
-
-```bash
-c4s agent "Brief nie precyzuje X — czy chodzi o A czy B?" --ct brief --brief <brief-slug>.md
-```
-
-Continue the same thread with `c4s agent "..." --thread <threadId>` (the
-`threadId` is printed with the answer).
-
-**Path B — current spec state (read-only ask).** `c4s ask` is a read-only peer
-consult of the **current** specification state, which may already be well ahead
-of the brief you are implementing. It "knows more / further", but the answer may
-reference changes outside your brief's scope. Pass the brief slug in the question
-text (there is no `--brief` here):
-
-```bash
-c4s ask "W briefie <brief-slug> nie jest jasne X — czy chodzi o A czy B?"
-```
-
-Continue the same thread with `c4s ask "..." --thread <threadId>`.
-
-Both paths require `c4s` installed *and* a running
-`npx @inharness-ai/claude4spec` server. When either is unavailable, skip them.
-
-If the command returns `PROJECT_NOT_FOUND` despite a running server, your cwd is
-probably reached through a **symlink** (common for `.claude/skills/<name>`
-projects): `c4s` resolves `process.cwd()` to the real path, which is NOT the one
-registered in `~/.claude4spec/workspaces.json`. Pass the registered (symlink) path
-explicitly — `--project` is run through `path.resolve`, which does NOT canonicalize
-symlinks, so it matches the registry. `--project` applies to **both** paths:
-
-```bash
-<!-- anchor: divvnatu -->
-# Path A (brief context):
-c4s agent "Brief nie precyzuje X — ..." --ct brief --brief <brief-slug>.md --project /abs/path/to/registered/skill-dir
-<!-- anchor: 11dmriz5 -->
-# Path B (current spec state):
-c4s ask "W briefie <brief-slug> nie jest jasne X — ..." --project /abs/path/to/registered/skill-dir
-```
-
-**Asynchronous (always available).** If you cannot ask synchronously, proceed
-with your best judgement and file a patch afterwards (step 5) so the
-spec-author can fold the clarification into the next brief.
-
-<!-- anchor: nefc9a21 -->
-### 3. Work in an isolated worktree (mandatory)
-
-Every brief is implemented in its own git worktree — never directly on `main`
-or a shared checkout. This keeps the main checkout clean and lets several
-briefs be in flight at once. Once you know the brief slug (from step 1):
+Read the full brief by the `path` printed by `list-briefs`:
 
 ```sh
-git worktree add .worktrees/<brief-slug> -b brief/<brief-slug>
-cd .worktrees/<brief-slug>
+c4s read-brief <brief-path> --project 'c4s-plugin-scaffold' --workspace 'default'
 ```
 
-- Branch: `brief/<brief-slug>` (the brief file name without `.md`).
-- Path: `.worktrees/<brief-slug>` inside the repo; `.worktrees/` is git-ignored.
-- Resuming an existing branch: drop `-b`
-  (`git worktree add .worktrees/<brief-slug> brief/<brief-slug>`).
+The body contains everything you need — entity snapshots, section diffs, the narrative of what changes, and acceptance criteria. Read it and implement it; you do not need to understand how the brief was produced. **Do not read the main specification.**
 
-Do all implementation, commits, patches, and the `implemented: true` flip from
-inside the worktree. After the brief is merged/accepted, clean up from the main
-checkout:
+If the brief is unclear — a missing detail, an ambiguous wording, a decision you'd otherwise have to guess — you have two paths.
+
+**Synchronous (preferred when available).** Ask the specification agent in the same terminal and continue once you have an answer. Two distinct commands, by what context you need.
+
+Preferred — context of THIS brief plus its release diff (the agent sees only the change window of the brief you are implementing):
+
+```bash
+c4s agent "Brief nie precyzuje X — czy chodzi o A czy B?" --ct brief --brief <brief-path> --project 'c4s-plugin-scaffold' --workspace 'default'
+```
+
+Alternative — read-only peer-consult of the CURRENT spec state (may be ahead of the brief you are implementing); no brief context, no `--ct`/`--brief`:
+
+```bash
+c4s ask "Jak dziala Y w aktualnej specce?" --project 'c4s-plugin-scaffold' --workspace 'default'
+```
+
+Continue the brief thread with `c4s agent "..." --thread <threadId> --project 'c4s-plugin-scaffold' --workspace 'default'` (the `threadId` is printed with the answer). This path requires `c4s` installed *and* a running `npx @inharness-ai/claude4spec` server. When either is unavailable, skip it.
+
+**Asynchronous (always available).** If you cannot ask synchronously, proceed with your best judgement and file a patch afterwards (step 4) so the spec-author can fold the clarification into the next brief.
+
+### 3. Implement
+
+Standard code flow in your target repository: read existing code, plan, edit, test. Stay focused on what the brief specifies.
+
+### 4. Feedback loop (patches)
+
+When you discover that the brief diverges from reality — a missing detail, an incorrect assumption, an edge case not covered, or anything else the spec-author should know — file a patch. Use `c4s file-patch`, which records the patch on the spec side for you:
 
 ```sh
-git worktree remove .worktrees/<brief-slug>
-git branch -d brief/<brief-slug>   # after merge
+printf '%s\n' "$PATCH_BODY" | c4s file-patch \
+  --brief <brief-path> --desc "<short-desc>" --kind drift \
+  --project 'c4s-plugin-scaffold' --workspace 'default'
 ```
 
-> Dev-install caveat: if this scaffold is dev-installed as a base plugin, the
-> host watches the **main checkout** path — changes made inside a worktree are
-> not hot-reloaded there. Verify from the main checkout after merge (or point
-> the dev-install symlink at the worktree).
+The body (from stdin, or `--body-file <f>`) goes below an auto-generated `# Patch — <short-desc>` heading. Structure the body as two sections: a `## What I found` section (the drift / missing detail / incorrect assumption) and a `## Suggestion` section (what the spec-author should consider in a follow-up brief or entity edits). `c4s file-patch` records all the metadata for you (which brief it relates to, the kind from `--kind`, defaulting to `drift`) — you only write the markdown body.
 
-<!-- anchor: zb33fumf -->
-### 4. Implement
-
-Standard code flow in your target repository: read existing code, plan, edit,
-test. Stay focused on what the brief specifies.
-
-<!-- anchor: 4dftpmum -->
-### 5. Feedback loop (patches)
-
-When you discover that the brief diverges from reality — a missing detail, an
-incorrect assumption, an edge case not covered, or anything else the
-spec-author should know — write a patch file:
-
-```sh
-mkdir -p .claude4spec/patches
-```
-
-Create `.claude4spec/patches/<brief-slug>-<short-desc>.md` with this format:
-
-```markdown
----
-type: patch
-brief: v0-1-16-to-v0-1-17.md      # path relative to briefs/
-patch_kind: drift                  # drift | missing | incorrect | clarification
-created_at: 2026-05-11T17:32:00Z
-created_by: claude-code            # or "cursor", "aider", ...
----
-
-<!-- anchor: 0o2q53b7 -->
-# Patch — short title
-
-<!-- anchor: s8cynxpc -->
-## What I found
-
-…description of the drift / missing detail / incorrect assumption…
-
-<!-- anchor: 40t02zje -->
-## Suggestion
-
-…what the spec-author should consider in a follow-up brief or entity edits…
-```
-
-Patch-kind values:
+`--kind` values:
 
 - `drift` — the brief described behavior X, but the codebase already does Y.
 - `missing` — the brief is silent on a detail you had to decide yourself.
 - `incorrect` — the brief is factually wrong about existing code.
-- `clarification` — the brief is ambiguous; you guessed but it should be made
-  explicit for next time.
+- `clarification` — the brief is ambiguous; you guessed but it should be made explicit for next time.
 
-The `.claude4spec/patches/` directory is created **lazily** — only when you
-file your first patch. The claude4spec server does NOT create it.
+### 5. Mark brief as implemented
 
-<!-- anchor: 2k9eeegi -->
-### 6. Mark brief as implemented
+When the implementation is genuinely finished — code committed, tests green, merged to main / accepted by the user — mark the brief as implemented (`implemented: true`):
 
-When the implementation is genuinely finished — code committed, tests green,
-merged to main / accepted by the user — flip the brief's frontmatter to
-`implemented: true`:
-
-```bash
-<!-- anchor: y2jwsohi -->
-# Option A — Edit tool: change the line `implemented: false` → `implemented: true`.
-<!-- anchor: 75d2b1fj -->
-# Option B — yq (idempotent; adds the field to legacy briefs that never had it):
-yq -i '.implemented = true' .claude4spec/briefs/<brief-slug>.md
+```sh
+c4s mark-brief-implemented <brief-path> --project 'c4s-plugin-scaffold' --workspace 'default'
 ```
 
-`implemented: true` is a **declaration**, not a computed fact derived from git.
-A revert on main does NOT roll the flag back. Set it ONLY when implementation
-is realistically done — never proactively or "just in case".
+Unlike the filesystem-scoped `c4s list-briefs` / `read-brief` / `file-patch`, this command **requires a running `npx @inharness-ai/claude4spec` server** — if it isn't up, ask the user to start it. There is no by-hand file edit: this skill is CLI-only.
 
-<!-- anchor: rumgznt8 -->
-### 7. Hand-off
+`implemented: true` is a **declaration**, not a computed fact derived from git. A revert on main does NOT roll the flag back. Set it ONLY when implementation is realistically done — never proactively or "just in case".
 
-The spec-author reads patches manually (`ls .claude4spec/patches/`, `cat`)
-and folds them into the next brief or entity edits. There is no UI listing in
-this release — patches are raw markdown.
+### 6. Hand-off
 
-<!-- anchor: bbf8v25z -->
+The spec-author picks up your patches on the spec side and folds each deviation back into the specification. That lifecycle lives entirely in the spec repo; you only write the raw markdown patch body via `c4s file-patch`.
+
 ## Notes
 
-This is a **base skill** generated by claude4spec. It already covers what you
-need to read briefs and ask the c4s agent questions. Feel free to **adapt it to
-your own workflow** (e.g. add a git/PR flow) or use it as-is — this base copy
-under `.claude4spec/skills/` is refreshed on server start, so copy it into your
-project's `.claude/skills/` if you want edits that stick.
+This is a **base skill** generated by claude4spec **on demand** — you got it either by downloading the ZIP from the Settings page or by running `c4s install-skills`, which writes it into your code repo's `.claude/skills/`. It already covers what you need to read briefs and ask the c4s agent questions. Feel free to **adapt it to your own workflow** (e.g. add a git/PR flow) or use it as-is. To refresh it against the current spec, re-download the ZIP or re-run `c4s install-skills` (overwrites the managed copy).

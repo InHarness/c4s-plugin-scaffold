@@ -10,3 +10,6 @@ dist/
 
 # per-brief git worktrees (see .claude/skills/c4s-brief-implementer)
 .worktrees/
+
+# symlinks to briefs/patches in the spec repo
+implementer/

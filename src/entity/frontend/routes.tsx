@@ -18,6 +18,11 @@
  * (the host ships none) that opens the create modal (`ExampleEntityCreateDialog`,
  * ui-view `example-entity-create-dialog`) — its open state is held locally here.
  *
+ * `search`/`tags`/`filter` are synced to the URL's query params (the ui-view's
+ * documented contract), not local-only state — read via `useSearch({strict:
+ * false})` and written via `navigate({search: ...})`, the same loose-typing
+ * escape hatch already used for `slug` below.
+ *
  * The `@tanstack/react-router` boundary is intentionally opaque in the Host API
  * (`RouteTreeFragment` works with `AnyRoute = unknown`), so the route factory and
  * navigation are loosely typed here.
@@ -25,10 +30,11 @@
 
 import type { FC, ReactNode } from 'react';
 import { useCallback, useMemo, useState } from 'react';
-import { createRoute, useNavigate, useParams } from '@tanstack/react-router';
+import { createRoute, useNavigate, useParams, useSearch } from '@tanstack/react-router';
 import { ActionButton, EmptyState, EntityListHeader, EntityListLayout, LoadingState, TagFilterBar } from '@c4s/plugin-runtime/ui';
 import type { Tag } from '@c4s/plugin-runtime/ui';
 import type { RouteTreeFragment } from '@c4s/plugin-runtime';
+import { useTags } from '@c4s/plugin-runtime';
 import { EXAMPLE_ENTITY_LABEL_PLURAL, EXAMPLE_ENTITY_PATH_PREFIX, EXAMPLE_ENTITY_TYPE } from '../../identity';
 import { useExampleEntityList } from './hooks';
 import { navigateToEntity } from './navigation';
@@ -45,12 +51,45 @@ const Pane: FC<{ children: ReactNode }> = ({ children }) => (
   </main>
 );
 
+/** The list screen's `search`/`tags`/`filter` query-param contract (all optional). */
+type ListSearch = { search?: string; tags?: string; filter?: 'and' | 'or' };
+
 function ExampleEntityListRoute(): JSX.Element {
   const navigate = useNavigate() as Navigate;
   const { data, isLoading } = useExampleEntityList();
-  const [search, setSearch] = useState('');
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [tagMode, setTagMode] = useState<'and' | 'or'>('or');
+
+  // `search`/`tags`/`filter` are synced to the URL, not local-only state — same
+  // `strict: false` loose-typing escape hatch already used for `slug` in the
+  // detail route, since the `@tanstack/react-router` boundary is intentionally
+  // opaque here (see the file header comment).
+  const routeSearch = useSearch({ strict: false }) as ListSearch;
+  const search = routeSearch.search ?? '';
+  const selectedTags = useMemo(
+    () => (routeSearch.tags ? routeSearch.tags.split(',').filter(Boolean) : []),
+    [routeSearch.tags],
+  );
+  const tagMode: 'and' | 'or' = routeSearch.filter === 'and' ? 'and' : 'or';
+
+  const updateSearch = useCallback(
+    (patch: Partial<ListSearch>) =>
+      navigate({ search: (prev: ListSearch) => ({ ...prev, ...patch }), replace: true } as never),
+    [navigate],
+  );
+  const setSearch = useCallback((next: string) => updateSearch({ search: next || undefined }), [updateSearch]);
+  const toggleTag = useCallback(
+    (slug: string) => {
+      const next = selectedTags.includes(slug) ? selectedTags.filter((s) => s !== slug) : [...selectedTags, slug];
+      updateSearch({ tags: next.length ? next.join(',') : undefined });
+    },
+    [selectedTags, updateSearch],
+  );
+  const clearTags = useCallback(() => updateSearch({ tags: undefined }), [updateSearch]);
+  const toggleMode = useCallback(() => {
+    const next: 'and' | 'or' = tagMode === 'and' ? 'or' : 'and';
+    // Keep the URL clean at the default (`or`) rather than always writing `filter`.
+    updateSearch({ filter: next === 'or' ? undefined : next });
+  }, [tagMode, updateSearch]);
+
   // CREATE-modal open state lives locally; a successful create invalidates the
   // list query inside the mutation hook, so no success callback is wired here.
   // `closeCreate` is stabilized so the modal's focus-management effect (keyed on
@@ -58,50 +97,62 @@ function ExampleEntityListRoute(): JSX.Element {
   const [createOpen, setCreateOpen] = useState(false);
   const closeCreate = useCallback(() => setCreateOpen(false), []);
 
-  // The scaffold's list DTO carries no tags, so the tag universe is empty and the
-  // TagFilterBar stays hidden; a derived plugin with tagged entities populates it.
-  const tagUniverse = useMemo<Tag[]>(() => [], []);
-  const toggleTag = useCallback(
-    (slug: string) =>
-      setSelectedTags((prev) => (prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug])),
-    [],
-  );
+  // Tag universe comes from the host's tag catalog; the bar stays hidden (below)
+  // when the project has no tags at all. `useTags()`'s `TagListItem` (from
+  // `@c4s/plugin-runtime`) lacks `createdAt`/`updatedAt` present on `Tag` (from
+  // `@c4s/plugin-runtime/ui`) even though they're meant to be the same shape —
+  // a host type-surface drift; `TagFilterBar`/`EntityListRow` never read either
+  // field, so the assertion is safe (see the filed patch for the upstream gap).
+  const tagCatalog = useTags();
+  const tagUniverse = useMemo<Tag[]>(() => (tagCatalog.data ?? []) as Tag[], [tagCatalog.data]);
+  // Rows' chip lookup is derived from the same universe, not built ad hoc per row.
+  const tagLookup = useMemo(() => new Map(tagUniverse.map((t) => [t.slug, t] as const)), [tagUniverse]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return data.filter(
-      (it) => !q || it.name.toLowerCase().includes(q) || (it.description ?? '').toLowerCase().includes(q),
-    );
-  }, [data, search]);
+    return data.filter((it) => {
+      const matchesSearch =
+        !q || it.name.toLowerCase().includes(q) || (it.description ?? '').toLowerCase().includes(q);
+      if (!matchesSearch) return false;
+      if (selectedTags.length === 0) return true;
+      const itemTags = it.tags ?? [];
+      return tagMode === 'and'
+        ? selectedTags.every((t) => itemTags.includes(t))
+        : selectedTags.some((t) => itemTags.includes(t));
+    });
+  }, [data, search, selectedTags, tagMode]);
 
   return (
     <Pane>
       <EntityListLayout
         header={
-          <EntityListHeader
-            // Same reference as `sidebarTab.icon` — the type icon in the list
-            // header (`ac-entitylistheader-renderuje-ikone-typu-en`).
-            icon={ExampleEntityIcon}
-            title={EXAMPLE_ENTITY_LABEL_PLURAL}
-            count={filtered.length}
-            search={search}
-            onSearchChange={setSearch}
-            searchPlaceholder="Search by name…"
-            // Host ships no CREATE button — compose it from `ActionButton`.
-            actions={<ActionButton label="Create" variant="primary" onClick={() => setCreateOpen(true)} />}
-            filters={
-              tagUniverse.length ? (
-                <TagFilterBar
-                  tags={tagUniverse}
-                  tagFilter={selectedTags}
-                  onTagToggle={toggleTag}
-                  tagMode={tagMode}
-                  onToggleMode={() => setTagMode((m) => (m === 'and' ? 'or' : 'and'))}
-                  onClear={() => setSelectedTags([])}
-                />
-              ) : undefined
-            }
-          />
+          <>
+            <EntityListHeader
+              // Same reference as `sidebarTab.icon` — the type icon in the list
+              // header (`ac-entitylistheader-renderuje-ikone-typu-en`).
+              icon={ExampleEntityIcon}
+              title={EXAMPLE_ENTITY_LABEL_PLURAL}
+              count={filtered.length}
+              search={search}
+              onSearchChange={setSearch}
+              searchPlaceholder="Search by name…"
+              // Host ships no CREATE button — compose it from `ActionButton`.
+              actions={<ActionButton label="Create" variant="primary" onClick={() => setCreateOpen(true)} />}
+            />
+            {/* A sibling row below the header, not the header's `filters` slot —
+                `TagFilterBar` is a full self-bordered strip (host's own list
+                pages stack it the same way), not a compact inline control. */}
+            {tagUniverse.length > 0 && (
+              <TagFilterBar
+                tags={tagUniverse}
+                tagFilter={selectedTags}
+                onTagToggle={toggleTag}
+                tagMode={tagMode}
+                onToggleMode={toggleMode}
+                onClear={clearTags}
+              />
+            )}
+          </>
         }
       >
         {isLoading ? (
@@ -127,6 +178,8 @@ function ExampleEntityListRoute(): JSX.Element {
                     updatedAt: item.updatedAt,
                   } as ExampleEntitySnapshot
                 }
+                tags={item.tags ?? []}
+                tagLookup={tagLookup}
                 onOpen={() => navigateToEntity(navigate, EXAMPLE_ENTITY_TYPE, item.slug)}
               />
             ))}

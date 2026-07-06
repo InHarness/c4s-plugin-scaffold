@@ -63,21 +63,24 @@ function rowToSnapshot(row: ExampleEntityRow): ExampleEntitySnapshot {
   return snapshot;
 }
 
-function rowToListItem(row: Pick<ExampleEntityRow, 'slug' | 'name' | 'description' | 'updated_at'>): ExampleEntityListItem {
-  const item: ExampleEntityListItem = {
-    slug: row.slug,
-    name: row.name,
-    updatedAt: row.updated_at,
-  };
-  if (row.description != null) item.description = row.description;
-  return item;
-}
-
 export class ExampleEntityService {
   constructor(
     private readonly db: MountContext['db'],
     private readonly ctx: MountContext,
   ) {}
+
+  private rowToListItem(
+    row: Pick<ExampleEntityRow, 'slug' | 'name' | 'description' | 'updated_at'>,
+  ): ExampleEntityListItem {
+    const item: ExampleEntityListItem = {
+      slug: row.slug,
+      name: row.name,
+      updatedAt: row.updated_at,
+      tags: this.ctx.tagsService?.getEntityTagSlugs?.(EXAMPLE_ENTITY_TYPE, row.slug) ?? [],
+    };
+    if (row.description != null) item.description = row.description;
+    return item;
+  }
 
   /** Create: `slug = slugify(name)`; `slug` is never accepted from the caller. */
   create(input: CreateExampleEntityRequest, actor: Actor = 'user'): ExampleEntitySnapshot {
@@ -207,7 +210,7 @@ export class ExampleEntityService {
 
     return rows
       .filter((r) => (allowed ? allowed.has(r.slug) : true))
-      .map(rowToListItem);
+      .map((r) => this.rowToListItem(r));
   }
 
   /**

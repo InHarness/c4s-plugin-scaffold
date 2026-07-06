@@ -1,43 +1,45 @@
 ---
 name: c4s-spec-reader
-description: Read claude4spec specification entities (endpoints, DTOs, tables, AC, UI views) referenced from markdown pages through XML tags like <inline_mention/>, <single_element/>, <tagged_list/>. Use when working in a repository whose pages/ contain these tags or whose .claude4spec/ directory exists. Resolves entity slugs to full data via c4s CLI or c4s-reader MCP server.
+description: Read claude4spec specification entities (endpoints, DTOs, tables, AC, UI views) referenced from markdown pages through XML tags like <inline_mention/>, <single_element/>, <tagged_list/>. Use when working in a repository whose pages/ contain these tags or whose .claude4spec/ directory exists. Resolves entity slugs to full data via the c4s CLI.
 ---
 
 # c4s-spec-reader
 
-This repository contains a claude4spec specification. Pages (`*.md`) reference
-entities stored in `.claude4spec/db.sqlite` through XML tags. This skill teaches
-you how to resolve them.
+This skill is bound to one claude4spec specification project — every `c4s`
+command below carries its identity (`--project 'c4s-plugin-scaffold' --workspace 'default'`), so it works from any cwd,
+including a foreign code repo whose pages reference this spec's entities. Do
+NOT `cd` into the spec repo; the identity is baked in, not derived from cwd.
 
-All commands below walk up from the agent's cwd to the nearest `.claude4spec/` —
-no absolute paths are required.
+**CLI-only — no filesystem fallback.** Every command below goes through
+`c4s`. If `c4s` isn't installed, STOP and ask the user to install it —
+never read the spec repo's pages or entity files directly.
 
 ## Resolving a tag
 
 Install `claude4spec` (Node 20+) and use the `c4s` CLI. Subcommand names match
-XML tag names 1:1.
+XML tag names 1:1 — append `--project 'c4s-plugin-scaffold' --workspace 'default'` to every command below.
 
 | XML tag | CLI equivalent |
 |---------|----------------|
-| `<inline_mention type="endpoint" slug="X"/>` | `c4s inline_mention --type endpoint --slug X` |
-| `<single_element type="dto" slug="X"/>` | `c4s single_element --type dto --slug X` |
-| `<element_list type="endpoint" slugs="a,b,c"/>` | `c4s element_list --type endpoint --slugs a,b,c` |
-| `<tagged_list type="dto" tags="auth" filter="and"/>` | `c4s tagged_list --type dto --tags auth --filter and` |
-| `<tagged_list_mixed tags="public"/>` | `c4s tagged_list_mixed --tags public` |
+| `<inline_mention type="endpoint" slug="X"/>` | `c4s inline_mention --type endpoint --slug X --project 'c4s-plugin-scaffold' --workspace 'default'` |
+| `<single_element type="dto" slug="X"/>` | `c4s single_element --type dto --slug X --project 'c4s-plugin-scaffold' --workspace 'default'` |
+| `<element_list type="endpoint" slugs="a,b,c"/>` | `c4s element_list --type endpoint --slugs a,b,c --project 'c4s-plugin-scaffold' --workspace 'default'` |
+| `<tagged_list type="dto" tags="auth" filter="and"/>` | `c4s tagged_list --type dto --tags auth --filter and --project 'c4s-plugin-scaffold' --workspace 'default'` |
+| `<tagged_list_mixed tags="public"/>` | `c4s tagged_list_mixed --tags public --project 'c4s-plugin-scaffold' --workspace 'default'` |
 
 ## Expanding a whole page
 
 ```sh
-c4s resolve some-page.md              # writes markdown with tags expanded inline
-c4s resolve some-page.md --format json   # writes { content, resolved: [...] }
+c4s resolve some-page.md --project 'c4s-plugin-scaffold' --workspace 'default'                # writes markdown with tags expanded inline
+c4s resolve some-page.md --format json --project 'c4s-plugin-scaffold' --workspace 'default'   # writes { content, resolved: [...] }
 ```
 
 ## Discovery
 
-- `c4s catalog` — active entity types with counts + version + description + roleNoun + mcpToolsLine per type (smoke test).
-- `c4s describe --type <t> [--view <v>]` — JSON Schema per view for one type (on-demand).
-- `c4s list-tags` — all tags with per-type counts.
-- `c4s list-slugs --type endpoint` — all slugs for a given type.
+- `c4s catalog --project 'c4s-plugin-scaffold' --workspace 'default'` — active entity types with counts + version + description + roleNoun + mcpToolsLine per type (smoke test).
+- `c4s describe --type <t> [--view <v>] --project 'c4s-plugin-scaffold' --workspace 'default'` — JSON Schema per view for one type (on-demand).
+- `c4s list-tags --project 'c4s-plugin-scaffold' --workspace 'default'` — all tags with per-type counts.
+- `c4s list-slugs --type endpoint --project 'c4s-plugin-scaffold' --workspace 'default'` — all slugs for a given type.
 
 All output is JSON (pretty) by default. Use `--compact` for pipelines and
 `--format text` for terminal-friendly output. Errors go to stderr as JSON with
@@ -51,25 +53,26 @@ When a question goes beyond resolving entities or pages, `c4s ask` runs a
 synchronous agent turn against the specification:
 
 ```sh
-c4s ask "<question>" --ct chat
+c4s ask "<question>" --ct chat --project 'c4s-plugin-scaffold' --workspace 'default'
 ```
 
 Unlike the read-only commands above, `c4s ask` requires a running
 `npx @inharness-ai/claude4spec` server (it delegates the turn to the server's agent).
 
-### `PROJECT_NOT_FOUND` when the project dir is a symlink
+## Errors
 
-If `c4s ask` (or any `c4s` command) returns `PROJECT_NOT_FOUND` even though a
-server is running, your cwd is most likely reached through a **symlink** (common
-for `.claude/skills/<name>` that points elsewhere). `c4s` resolves `process.cwd()`
-through the symlink to the real path, which is NOT the path registered in
-`~/.claude4spec/workspaces.json`. Pass the registered (symlink) path explicitly —
-`--project` is run through `path.resolve`, which does NOT canonicalize symlinks, so
-it matches the registry exactly:
+### `PROJECT_SLUG_NOT_FOUND` — this skill's identity no longer resolves
 
-```sh
-c4s ask "<question>" --ct chat --project /abs/path/to/registered/project-dir
-```
+If any `c4s` command above returns `PROJECT_SLUG_NOT_FOUND`, the `--project
+'c4s-plugin-scaffold'` baked into this skill no longer matches a project in this
+machine's `~/.claude4spec/workspaces.json` (the spec project was moved, deleted,
+or this skill was copied from a different machine). Regenerate the skill from
+the spec repo (`npx @inharness-ai/claude4spec`) and re-copy it here.
+
+### `AMBIGUOUS_WORKSPACE` / `AMBIGUOUS_PROJECT`
+
+The project (or its registered name) matches more than one entry in the
+registry — pass the correct `--workspace <name>` to disambiguate.
 
 ### `SERVER_NOT_RECOGNIZED` / `PROJECT_BUILD_FAILED` — the project failed to build
 

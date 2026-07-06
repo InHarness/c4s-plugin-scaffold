@@ -48,4 +48,10 @@ export interface ExampleEntityListItem {
   description?: string;
   /** ISO 8601, for list sorting. */
   updatedAt: string;
+  /**
+   * Optional tag slugs assigned to this entity — carries the row-level chips
+   * (layer 2 of the list screen's two-layer tag presentation). Empty in the
+   * scaffold until entities are tagged.
+   */
+  tags?: string[];
 }

@@ -79,11 +79,16 @@ export const exampleEntitySerializer: EntitySerializer<ExampleEntitySnapshot> = 
     subtitle: e.description,
   }),
 
+  // `tags` is intentionally empty here: tags are host-owned (no column on the
+  // entity itself), and this serializer has no synchronous access to
+  // `ctx.tagsService` to resolve them. A derived plugin with a tag-aware data
+  // source would populate it for real.
   elementListItem: (e: ExampleEntitySnapshot, _ctx: SerializeContext) => ({
     kind: 'element_list_item',
     type: EXAMPLE_ENTITY_TYPE,
     slug: e.slug,
     title: e.name,
+    tags: [],
   }),
 
   taggedListItem: (e: ExampleEntitySnapshot, _ctx: SerializeContext) => ({
@@ -91,6 +96,7 @@ export const exampleEntitySerializer: EntitySerializer<ExampleEntitySnapshot> = 
     type: EXAMPLE_ENTITY_TYPE,
     slug: e.slug,
     title: e.name,
+    tags: [],
   }),
 
   detail: (e: ExampleEntitySnapshot, _ctx: SerializeContext) => ({

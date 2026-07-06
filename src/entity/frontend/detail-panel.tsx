@@ -15,10 +15,13 @@
  * pattern — a draft plus one `useUpdateExampleEntity` mutation, gated on `dirty`
  * (draft vs baseline). (Debounced-autosave is the equally-valid alternative.)
  *
- * Destructive confirm: normally host-owned via the `EntityDetailToolbar` bar — but
- * that host component is NOT shipped yet (see the `entity-detail-toolbar-not-shipped`
- * patch), so this panel renders its OWN inline "Delete" and owns the confirm itself,
- * then calls `onDeleted?` on success.
+ * Destructive confirm is host-owned via the `EntityDetailToolbar` bar (title +
+ * delete button + its own confirm dialog); the panel only supplies `onDelete`
+ * (the actual mutation) and `busy`, and calls `onDeleted?` on success. Composed
+ * inside `DetailPanelShell`'s body rather than its breadcrumb, so the entity name
+ * isn't shown twice: `breadcrumb={[]}` (renders nothing), `Save` stays in
+ * `DetailPanelShell.actions` (top-right), and `EntityDetailToolbar` — title +
+ * Delete — is the first child.
  *
  * There is NO `onBack`: back is owned by the host `DetailPanelShell` breadcrumb, not a
  * panel prop. Cross-entity/section navigation goes through the host `editorBridge`
@@ -29,10 +32,10 @@
  * still ships the 1.0.0 `EntityDetailProps` (required `onBack`); see the patch
  * `v0-0-4-to-v0-0-5-pages-host-types-not-shipped.md`.
  *
- * Framed with the Host UI Kit (`@c4s/plugin-runtime/ui`): `DetailPanelShell` (frame +
- * breadcrumb — NO `title` prop; the header is the last breadcrumb segment; actions go
- * in `actions`), `FieldGrid`/`FieldRow` (value as `children`), `InlineEditField`
- * (name/description editing), `ActionButton`, and `Dialog` (delete confirm).
+ * Framed with the Host UI Kit (`@c4s/plugin-runtime/ui`): `DetailPanelShell` (frame
+ * + actions), `EntityDetailToolbar` (title + host-owned delete confirm),
+ * `FieldGrid`/`FieldRow` (value as `children`), `InlineEditField` (name/description
+ * editing), and `ActionButton`.
  */
 
 import type { CSSProperties, FC } from 'react';
@@ -42,8 +45,8 @@ import {
   ActionButton,
   Badge,
   DetailPanelShell,
-  Dialog,
   EmptyState,
+  EntityDetailToolbar,
   FieldGrid,
   FieldRow,
   InlineEditField,
@@ -62,19 +65,6 @@ type EntityDetailProps = {
 };
 
 const ERROR_STYLE: CSSProperties = { color: 'var(--c-red, #dc2626)', fontSize: 12.5, margin: 0 };
-
-const DANGER_STYLE: CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  borderRadius: 6,
-  padding: '6px 12px',
-  fontSize: 12.5,
-  fontWeight: 500,
-  border: '1px solid transparent',
-  background: 'var(--c-red, #dc2626)',
-  color: '#fff',
-  cursor: 'pointer',
-};
 
 const MUTED_STYLE: CSSProperties = { color: 'var(--c-subtle, #6b7280)', fontSize: 12.5 };
 
@@ -199,8 +189,6 @@ const ExampleEntityDetailForm: FC<{
   const [baseline, setBaseline] = useState({ name: entity.name, description: entity.description ?? '' });
   const dirty = draft.name !== baseline.name || draft.description !== baseline.description;
 
-  const [confirmOpen, setConfirmOpen] = useState(false);
-
   const handleSave = () => {
     if (!dirty || update.isPending) return;
     const nextSlug = slugify(draft.name);
@@ -229,31 +217,31 @@ const ExampleEntityDetailForm: FC<{
     del.mutate(
       { slug: entity.slug },
       {
-        onSuccess: () => {
-          setConfirmOpen(false);
-          onDeleted?.();
-        },
+        onSuccess: () => onDeleted?.(),
       },
     );
   };
 
   return (
+    // `breadcrumb={[]}`: the entity name is shown once, by `EntityDetailToolbar`
+    // below — not duplicated here. `actions` keeps only `Save`; `Delete` (with its
+    // host-owned confirm) now lives on the toolbar.
     <DetailPanelShell
-      // Single current-entity crumb, no back hop: back is host-owned
-      // (`DetailPanelShell`), the panel does not build an `onBack` breadcrumb.
-      breadcrumb={[{ label: draft.name || entity.slug }]}
+      breadcrumb={[]}
       actions={
-        <>
-          <ActionButton
-            label={update.isPending ? 'Saving…' : 'Save'}
-            variant="primary"
-            onClick={handleSave}
-            disabled={!dirty || update.isPending}
-          />
-          <ActionButton label="Delete" variant="ghost" onClick={() => setConfirmOpen(true)} />
-        </>
+        <ActionButton
+          label={update.isPending ? 'Saving…' : 'Save'}
+          variant="primary"
+          onClick={handleSave}
+          disabled={!dirty || update.isPending}
+        />
       }
     >
+      <EntityDetailToolbar
+        title={draft.name || entity.slug}
+        onDelete={handleDelete}
+        busy={del.isPending}
+      />
       <FieldGrid>
         <FieldRow label="Slug">
           <code>{entity.slug}</code>
@@ -282,38 +270,11 @@ const ExampleEntityDetailForm: FC<{
           {update.error.message}
         </p>
       ) : null}
-
-      {/* Plugin-owned destructive confirm — the panel renders its own inline delete,
-          so it OWNS the confirm before the mutation (host-owned confirm applies only
-          to the not-yet-shipped `EntityDetailToolbar` bar). */}
-      <Dialog
-        open={confirmOpen}
-        onClose={() => (del.isPending ? undefined : setConfirmOpen(false))}
-        title="Delete this entity?"
-        size="sm"
-        footer={
-          <>
-            <ActionButton
-              label="Cancel"
-              variant="ghost"
-              onClick={() => setConfirmOpen(false)}
-              disabled={del.isPending}
-            />
-            <button type="button" onClick={handleDelete} disabled={del.isPending} style={DANGER_STYLE}>
-              {del.isPending ? 'Deleting…' : 'Delete'}
-            </button>
-          </>
-        }
-      >
-        <p style={{ margin: 0, fontSize: 13 }}>
-          <code>{entity.slug}</code> will be permanently removed. This cannot be undone.
+      {del.error ? (
+        <p role="alert" style={ERROR_STYLE}>
+          {del.error.message}
         </p>
-        {del.error ? (
-          <p role="alert" style={{ ...ERROR_STYLE, marginTop: 8 }}>
-            {del.error.message}
-          </p>
-        ) : null}
-      </Dialog>
+      ) : null}
     </DetailPanelShell>
   );
 };
