@@ -11,5 +11,9 @@ dist/
 # per-brief git worktrees (see .claude/skills/c4s-brief-implementer)
 .worktrees/
 
+# persisted docker/plugin-smoke.sh defaults (e.g. C4S_HOST_DIR)
+.env
+.env.local
+
 # symlinks to briefs/patches in the spec repo
 implementer/
