@@ -207,9 +207,10 @@ function ExampleEntityDetailRoute(): JSX.Element {
         // `key={slug}` resets the panel's draft when navigating between entities.
         key={slug}
         slug={slug}
-        // No `onBack`: back is host-owned (`DetailPanelShell` breadcrumb). The
-        // wrapper stands in for the host's list/breadcrumb refresh, wiring the
-        // OPTIONAL `onDeleted?`/`onRenamed?` notifications to router navigation.
+        // No `onBack` in the host's 1.1.0 contract, but the panel's OWN breadcrumb
+        // needs a real "back to list" click handler — this wrapper is the one
+        // layer that actually holds router context, so it supplies it.
+        onBackToList={() => navigate({ to: EXAMPLE_ENTITY_PATH_PREFIX })}
         onDeleted={() => navigate({ to: EXAMPLE_ENTITY_PATH_PREFIX })}
         onRenamed={(newSlug) => navigateToEntity(navigate, EXAMPLE_ENTITY_TYPE, newSlug, { replace: true })}
       />
