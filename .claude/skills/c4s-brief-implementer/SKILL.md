@@ -9,7 +9,7 @@ This skill describes how to implement a release brief in **your code repository*
 
 **Reaching the briefs.** This skill is **CLI-only**: it reaches the briefs and writes patches solely through the `c4s` CLI, with the spec project's identity baked into this skill (`--project 'c4s-plugin-scaffold' --workspace 'default'`) — `c4s list-briefs` / `c4s read-brief` / `c4s file-patch` work from any directory, without a running server (they are filesystem-scoped). If `c4s` is not installed, **stop** and ask the user to install it — do not read or write the spec repo's files by hand.
 
-**The brief is self-contained.** You do not need to read the main specification or query the entity database — everything is in the brief body. If the brief references something you cannot find in its body, treat that as drift and file a patch (step 4 below).
+**The brief is self-contained.** You do not need to read the main specification or query the entity database — everything is in the brief body. If the brief references something you cannot find in its body, treat that as drift and file a patch (step 5 below).
 
 ## Workflow
 
@@ -53,13 +53,54 @@ c4s ask "Jak dziala Y w aktualnej specce?" --project 'c4s-plugin-scaffold' --wor
 
 Continue the brief thread with `c4s agent "..." --thread <threadId> --project 'c4s-plugin-scaffold' --workspace 'default'` (the `threadId` is printed with the answer). This path requires `c4s` installed *and* a running `npx @inharness-ai/claude4spec` server. When either is unavailable, skip it.
 
-**Asynchronous (always available).** If you cannot ask synchronously, proceed with your best judgement and file a patch afterwards (step 4) so the spec-author can fold the clarification into the next brief.
+**Asynchronous (always available).** If you cannot ask synchronously, proceed with your best judgement and file a patch afterwards (step 5) so the spec-author can fold the clarification into the next brief.
 
 ### 3. Implement
 
 Standard code flow in your target repository: read existing code, plan, edit, test. Stay focused on what the brief specifies.
 
-### 4. Feedback loop (patches)
+Do the implementation in an isolated **git worktree**, not directly in the main checkout — this repo already gitignores `.worktrees/` for exactly this.
+
+```sh
+git worktree add .worktrees/<slug> -b <slug>
+```
+
+Pick `<slug>` from the brief's own slug/path (or a short descriptive name for ad-hoc, non-brief work). Do all edits, typechecking, and building inside that worktree — never touch the main checkout directly.
+
+When the implementation is verified (typecheck/build/tests green), push the branch and open a pull request — but do **not** merge it yourself:
+
+```sh
+git push -u origin <slug>
+gh pr create --title "..." --body "..."
+```
+
+Merging is a human decision (review, CI, etc.) — this skill's job ends at "PR opened," never at "PR merged." Once the PR is merged (or abandoned), remove the worktree:
+
+```sh
+git worktree remove .worktrees/<slug>
+```
+
+### 4. Smoke-test in Docker against a real host
+
+Before filing patches or marking the brief implemented, build the plugin and verify the contributed entity actually loads and *activates* against a real, running host — don't hand off on green typecheck/build alone. From inside the worktree:
+
+```sh
+docker/plugin-smoke.sh "$slug"
+# bump the port if another worktree/brief already has one running:
+docker/plugin-smoke.sh "$slug" --port 3001
+```
+
+This builds `dist/` (`npm run build`), auto-detects a sibling `claude4spec` host checkout (override with `C4S_HOST_DIR`, or use `--host-ref <branch|PR#|sha>` to test against a specific host revision in its own isolated worktree — never your host checkout's working tree directly), mounts this plugin's `dist/` read-only into a seeded fixture project, trusts it non-interactively, and polls until the contributed entity type(s) are reported `active` — not just `loaded`. Leave the container running (the script does not tear down on success) and report back: the URL, the port, and the entity type(s) you verified — the user gets their own hands-on look at what you just exercised.
+
+If the host checkout predates plugin-mount support, the script fails with a clear message naming what's missing — don't try to work around that by hand. If the smoke test reveals drift (e.g. a detail the brief didn't cover about how the entity should render once active), file a patch (step 5).
+
+Tear down once you've moved on to another brief, or the user confirms they're done poking at it — don't leave stray containers/worktrees behind across unrelated briefs:
+
+```sh
+docker/plugin-smoke.sh "$slug" --down
+```
+
+### 5. Feedback loop (patches)
 
 When you discover that the brief diverges from reality — a missing detail, an incorrect assumption, an edge case not covered, or anything else the spec-author should know — file a patch. Use `c4s file-patch`, which records the patch on the spec side for you:
 
@@ -78,7 +119,7 @@ The body (from stdin, or `--body-file <f>`) goes below an auto-generated `# Patc
 - `incorrect` — the brief is factually wrong about existing code.
 - `clarification` — the brief is ambiguous; you guessed but it should be made explicit for next time.
 
-### 5. Mark brief as implemented
+### 6. Mark brief as implemented
 
 When the implementation is genuinely finished — code committed, tests green, merged to main / accepted by the user — mark the brief as implemented (`implemented: true`):
 
@@ -90,7 +131,7 @@ Unlike the filesystem-scoped `c4s list-briefs` / `read-brief` / `file-patch`, th
 
 `implemented: true` is a **declaration**, not a computed fact derived from git. A revert on main does NOT roll the flag back. Set it ONLY when implementation is realistically done — never proactively or "just in case".
 
-### 6. Hand-off
+### 7. Hand-off
 
 The spec-author picks up your patches on the spec side and folds each deviation back into the specification. That lifecycle lives entirely in the spec repo; you only write the raw markdown patch body via `c4s file-patch`.
 
