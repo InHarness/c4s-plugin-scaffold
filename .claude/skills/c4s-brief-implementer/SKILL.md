@@ -59,6 +59,27 @@ Continue the brief thread with `c4s agent "..." --thread <threadId> --project 'c
 
 Standard code flow in your target repository: read existing code, plan, edit, test. Stay focused on what the brief specifies.
 
+Do the implementation in an isolated **git worktree**, not directly in the main checkout — this repo already gitignores `.worktrees/` for exactly this.
+
+```sh
+git worktree add .worktrees/<slug> -b <slug>
+```
+
+Pick `<slug>` from the brief's own slug/path (or a short descriptive name for ad-hoc, non-brief work). Do all edits, typechecking, and building inside that worktree — never touch the main checkout directly.
+
+When the implementation is verified (typecheck/build/tests green), push the branch and open a pull request — but do **not** merge it yourself:
+
+```sh
+git push -u origin <slug>
+gh pr create --title "..." --body "..."
+```
+
+Merging is a human decision (review, CI, etc.) — this skill's job ends at "PR opened," never at "PR merged." Once the PR is merged (or abandoned), remove the worktree:
+
+```sh
+git worktree remove .worktrees/<slug>
+```
+
 ### 4. Feedback loop (patches)
 
 When you discover that the brief diverges from reality — a missing detail, an incorrect assumption, an edge case not covered, or anything else the spec-author should know — file a patch. Use `c4s file-patch`, which records the patch on the spec side for you:
