@@ -104,11 +104,6 @@ export class ExampleEntityService {
         updated_at: ts,
       });
     this.broadcast(slug);
-    // Best-effort: the host's `RawEntityReader` only knows its own 7 native entity
-    // types — `ENTITY_TABLES` has no `example-entity` key, so `captureEntitySnapshot`
-    // throws for plugin-contributed types today. Swallow rather than break
-    // create/update/delete on a host gap; the call stays wired so History starts
-    // working the moment the host closes it.
     try {
       this.ctx.versionService?.captureEntitySnapshot?.(
         EXAMPLE_ENTITY_TYPE,
@@ -118,8 +113,9 @@ export class ExampleEntityService {
         'Created',
         SERIALIZER_VERSION,
       );
-    } catch {
-      // See comment above — host-side gap, not this plugin's to fix.
+    } catch (err) {
+      console.error(`[example-entity] captureEntitySnapshot failed for ${slug} (op=create):`, err);
+      throw err;
     }
     return this.getBySlug(slug)!;
   }
@@ -183,9 +179,7 @@ export class ExampleEntityService {
     }
     this.broadcast(targetSlug);
 
-    // Best-effort, see the same call in `create` — swallowed until the host's
-    // `RawEntityReader` learns about plugin-contributed entity types. Captures
-    // under `targetSlug` (post-rename), matching the host's own entity services.
+    // Captures under `targetSlug` (post-rename), matching the host's own entity services.
     try {
       this.ctx.versionService?.captureEntitySnapshot?.(
         EXAMPLE_ENTITY_TYPE,
@@ -195,8 +189,12 @@ export class ExampleEntityService {
         'Updated',
         SERIALIZER_VERSION,
       );
-    } catch {
-      // Host-side gap, not this plugin's to fix.
+    } catch (err) {
+      console.error(
+        `[example-entity] captureEntitySnapshot failed for ${targetSlug} (op=update):`,
+        err,
+      );
+      throw err;
     }
 
     return { snapshot: this.getBySlug(targetSlug)!, previousSlug: slug };
@@ -210,7 +208,7 @@ export class ExampleEntityService {
     const danglingRefs: unknown[] =
       this.ctx.referencesService?.findReferrers?.(EXAMPLE_ENTITY_TYPE, slug) ?? [];
     // Capture BEFORE the row is gone — `captureEntitySnapshot` reads the entity's
-    // current data, which only exists up to this point. Best-effort, see `create`.
+    // current data, which only exists up to this point.
     try {
       this.ctx.versionService?.captureEntitySnapshot?.(
         EXAMPLE_ENTITY_TYPE,
@@ -220,8 +218,9 @@ export class ExampleEntityService {
         'Deleted',
         SERIALIZER_VERSION,
       );
-    } catch {
-      // Host-side gap, not this plugin's to fix.
+    } catch (err) {
+      console.error(`[example-entity] captureEntitySnapshot failed for ${slug} (op=delete):`, err);
+      throw err;
     }
     const info = this.db
       .prepare(`DELETE FROM ${EXAMPLE_ENTITY_TABLE} WHERE slug = ?`)
