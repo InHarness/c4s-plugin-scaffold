@@ -100,6 +100,15 @@ Tear down once you've moved on to another brief, or the user confirms they're do
 docker/plugin-smoke.sh "$slug" --down
 ```
 
+#### 4b. Order an environment via env-runner
+
+`docker/plugin-smoke.sh` **stays the default fast path** for the simple case: one plugin, no API, a stable host. Reach for **env-runner** only when the smoke test outgrows a single container:
+
+- **Multi-component** scenarios — the plugin has to be verified together with the API stack and/or a specific app `ref` (e.g. a PR revision of `claude4spec`), not just a plain host checkout.
+- **Parallel environments** — several briefs/worktrees smoke-testing at once, where you need isolated networks and non-colliding ports instead of manually bumping `--port`.
+
+**You do not run env-runner yourself.** Write an *environment order* to the operator following the order template, receive back the environment name plus the port/URL map, and — when done — ask the operator to `envr destroy` it. The operator translates the order into `manifest.yml` and drives `envr create` / `up` / `destroy`. State plainly what you need (host app mode + ref, whether the API stack is on, which plugin repo/ref, the contributed `entityTypes`, and the data mode) and let the operator do the rest; iterating on a new push is a deterministic `destroy` + `create`.
+
 ### 5. Feedback loop (patches)
 
 When you discover that the brief diverges from reality — a missing detail, an incorrect assumption, an edge case not covered, or anything else the spec-author should know — file a patch. Use `c4s file-patch`, which records the patch on the spec side for you:
