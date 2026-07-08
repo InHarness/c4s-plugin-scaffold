@@ -230,24 +230,17 @@ export class ExampleEntityService {
     return { deleted, danglingRefs };
   }
 
-  /** Lightweight list (no heavy `data`), newest first, optionally filtered by tags. */
-  async list(query: ExampleEntityListQuery = {}): Promise<ExampleEntityListItem[]> {
+  /**
+   * Lightweight list (no heavy `data`), newest first, optionally filtered by
+   * tags. Filtering happens in-memory against each row's own tag slugs
+   * (`rowToListItem` already resolves them via `tagsService.getEntityTagSlugs`,
+   * a real, synchronous host method) — kept synchronous so the same method
+   * backs both the HTTP router and `ExampleEntityCrudAdapter.list()`, which
+   * the host's generic `entity-tools` MCP server calls without `await`.
+   */
+  list(query: ExampleEntityListQuery = {}): ExampleEntityListItem[] {
     const tags = query.tags ?? [];
     const filter: 'and' | 'or' = query.filter ?? 'or';
-
-    let allowed: Set<string> | null = null;
-    if (tags.length && this.ctx.tagsService?.listEntitiesByTags) {
-      const matches = await this.ctx.tagsService.listEntitiesByTags({
-        type: EXAMPLE_ENTITY_TYPE,
-        tags,
-        filter,
-      });
-      allowed = new Set(
-        (matches ?? []).map((m: { slug?: string } | string) =>
-          typeof m === 'string' ? m : m.slug ?? '',
-        ),
-      );
-    }
 
     const rows = this.db
       .prepare(
@@ -257,9 +250,12 @@ export class ExampleEntityService {
       )
       .all() as Array<Pick<ExampleEntityRow, 'slug' | 'name' | 'description' | 'updated_at'>>;
 
-    return rows
-      .filter((r) => (allowed ? allowed.has(r.slug) : true))
-      .map((r) => this.rowToListItem(r));
+    const items = rows.map((r) => this.rowToListItem(r));
+    if (!tags.length) return items;
+    return items.filter((item) => {
+      const itemTags = new Set(item.tags ?? []);
+      return filter === 'and' ? tags.every((t) => itemTags.has(t)) : tags.some((t) => itemTags.has(t));
+    });
   }
 
   /**

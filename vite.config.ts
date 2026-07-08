@@ -36,7 +36,6 @@ const EXTERNAL = [
   // Host UI Kit subpath — a distinct module id to Rollup, so it must be listed
   // separately from '@c4s/plugin-runtime' to keep the host UI out of dist.
   '@c4s/plugin-runtime/ui',
-  '@inharness-ai/agent-adapters',
   'react',
   'react-dom',
   'react-dom/client',
