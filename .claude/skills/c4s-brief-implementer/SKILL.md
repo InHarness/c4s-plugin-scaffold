@@ -80,34 +80,49 @@ Merging is a human decision (review, CI, etc.) — this skill's job ends at "PR 
 git worktree remove .worktrees/<slug>
 ```
 
-### 4. Smoke-test in Docker against a real host
+### 4. Smoke-test against a real host (via env-runner)
 
-Before filing patches or marking the brief implemented, build the plugin and verify the contributed entity actually loads and *activates* against a real, running host — don't hand off on green typecheck/build alone. From inside the worktree:
+Before filing patches or marking the brief implemented, stand up a real, running host with your plugin mounted and verify the contributed entity actually loads and *activates* — don't hand off on green typecheck/build alone.
 
-```sh
-docker/plugin-smoke.sh "$slug"
-# bump the port if another worktree/brief already has one running:
-docker/plugin-smoke.sh "$slug" --port 3001
-```
+**Every environment goes through the centralized `env-runner` project — never local ad-hoc Docker scripts.** This includes the plain single-plugin smoke: it's just the smallest manifest (host app + this plugin). You do **not** run Docker yourself. You send an *order* — a manifest — to the env-runner operator over `c4s agent`; it creates the environment and returns the URL + port map; at the end you ask it to tear the environment down. This is what replaces the old `docker/plugin-smoke.sh` flow: the smoke capability lives on, but it runs centrally.
 
-This builds `dist/` (`npm run build`), auto-detects a sibling `claude4spec` host checkout (override with `C4S_HOST_DIR`, or use `--host-ref <branch|PR#|sha>` to test against a specific host revision in its own isolated worktree — never your host checkout's working tree directly), mounts this plugin's `dist/` read-only into a seeded fixture project, trusts it non-interactively, and polls until the contributed entity type(s) are reported `active` — not just `loaded`. Leave the container running (the script does not tear down on success) and report back: the URL, the port, and the entity type(s) you verified — the user gets their own hands-on look at what you just exercised.
-
-If the host checkout predates plugin-mount support, the script fails with a clear message naming what's missing — don't try to work around that by hand. If the smoke test reveals drift (e.g. a detail the brief didn't cover about how the entity should render once active), file a patch (step 5).
-
-Tear down once you've moved on to another brief, or the user confirms they're done poking at it — don't leave stray containers/worktrees behind across unrelated briefs:
+First build `dist/` so the mounted overlay is current:
 
 ```sh
-docker/plugin-smoke.sh "$slug" --down
+npm run build
 ```
 
-#### 4b. Order an environment via env-runner
+Then order the environment from the `env-runner` project (workspace `default`). Pass a manifest describing what to stand up — for a plugin smoke that's the host app plus this plugin's repo/ref and its contributed `entityTypes` (add `data: seed:<path>` when the check needs a seeded fixture, or bring up `api` for a multi-component smoke):
 
-`docker/plugin-smoke.sh` **stays the default fast path** for the simple case: one plugin, no API, a stable host. Reach for **env-runner** only when the smoke test outgrows a single container:
+```bash
+c4s agent "Utwórz środowisko smoke dla tego pluginu wg manifestu:
+name: <slug>
+components:
+  app:
+    repo: git@github.com:InHarness/claude4spec.git
+    ref: main            # lub pr/<n> | branch | tag | sha, aby przypiąć rewizję hosta
+    mode: registry       # local, gdy host budowany ze źródeł
+  plugins:
+    - repo: <this-plugin-repo>
+      ref: <branch|pr/<n>|tag|sha>
+      entityTypes: [<slug-typu-encji>, ...]
+data: empty              # lub seed:<ścieżka>, gdy potrzebny fixture
+Zwróć nazwę środowiska oraz mapę portów/URL." \
+  --project 'env-runner' --workspace 'default'
+```
 
-- **Multi-component** scenarios — the plugin has to be verified together with the API stack and/or a specific app `ref` (e.g. a PR revision of `claude4spec`), not just a plain host checkout.
-- **Parallel environments** — several briefs/worktrees smoke-testing at once, where you need isolated networks and non-colliding ports instead of manually bumping `--port`.
+The operator polls until the contributed entity type(s) report **active** — not just `loaded` — and hands back the environment name, the port map / URL, and the entity type(s) it verified. Report those to the user so they get their own hands-on look at what you just exercised. If the smoke reveals drift (e.g. a detail the brief didn't cover about how the entity should render once active), file a patch (step 5).
 
-**You do not run env-runner yourself.** Write an *environment order* to the operator following the order template, receive back the environment name plus the port/URL map, and — when done — ask the operator to `envr destroy` it. The operator translates the order into `manifest.yml` and drives `envr create` / `up` / `destroy`. State plainly what you need (host app mode + ref, whether the API stack is on, which plugin repo/ref, the contributed `entityTypes`, and the data mode) and let the operator do the rest; iterating on a new push is a deterministic `destroy` + `create`.
+Continue the **same thread** for follow-ups — `c4s agent "..." --thread <threadId> --project 'env-runner' --workspace 'default'` (the `threadId` is printed with the answer): check status, or re-create after a new push (a new push on the same `ref` is a deterministic `destroy` + `create`, so there is no stale state to clean up by hand).
+
+When you've moved on to another brief, or the user confirms they're done poking at it, ask the operator to tear it down — don't leave stray environments behind:
+
+```bash
+c4s agent "Zamknij środowisko <nazwa> (envr destroy)." \
+  --thread <threadId> --project 'env-runner' --workspace 'default'
+```
+
+Like the synchronous clarification path in step 2, `c4s agent` needs `c4s` installed **and** a running `npx @inharness-ai/claude4spec` server. If the server isn't up, ask the user to start it — there is no by-hand Docker fallback in this skill.
 
 ### 5. Feedback loop (patches)
 
