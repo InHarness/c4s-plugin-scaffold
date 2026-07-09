@@ -53,14 +53,17 @@
  *
  * Framed with the Host UI Kit (`@c4s/plugin-runtime/ui`): `DetailPanelShell` (frame
  * + breadcrumb/actions), `SegmentedControlTabs` (Details/History), `Dialog` (delete
- * confirm), `VersionHistory` (History pane), and `ActionButton`. Description/Tags
- * use the same "section label + full-width content" pattern as the host's own
- * entity pages (`ac`, `design-system`) — confirmed neither uses `FieldGrid`/
- * `FieldRow` for long-text/list fields — so this file doesn't either;
- * `RichTextField` (not `InlineEditField`) backs Description for the same reason.
+ * confirm), `VersionHistory` (History pane), `TagPicker` (Tags, `variant="collapsed"`
+ * — same cast-past-the-published-type convention `routes.tsx` already uses for
+ * `createRoute`), and `ActionButton`. Description/Tags use the same "section label
+ * + full-width content" pattern as the host's own entity pages (`ac`,
+ * `design-system`, `endpoint`) — confirmed neither uses `FieldGrid`/`FieldRow` for
+ * long-text/list fields — so this file doesn't either; Description is a plain
+ * auto-growing `<textarea>` (not `RichTextField`, which shows an unwanted toolbar
+ * with no published way to hide it).
  */
 
-import type { CSSProperties, FC, ReactNode } from 'react';
+import type { CSSProperties, ComponentType, FC, ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import {
   useAssignTags,
@@ -81,10 +84,19 @@ import {
   ReferencesList,
   type ReferencesListItem,
   SegmentedControlTabs,
-  TagPicker,
+  TagPicker as TagPickerBase,
+  type TagPickerProps,
   VersionHistory,
   type VersionHistoryItem,
 } from '@c4s/plugin-runtime/ui';
+
+// `variant` genuinely exists on the runtime component (verified in host source,
+// `host-ui-kit/detail/TagPicker.tsx`) — every built-in entity (`ac`,
+// `design-system`, `endpoint`) passes `variant="collapsed"` (selected chips + a
+// "+N" popover, instead of every tag always shown flat), but it isn't yet in the
+// published `ui.d.ts` — same class of gap `routes.tsx` already casts past for
+// `createRoute`.
+const TagPicker = TagPickerBase as ComponentType<TagPickerProps & { variant?: 'flat' | 'collapsed' }>;
 import { EXAMPLE_ENTITY_LABEL_PLURAL, EXAMPLE_ENTITY_TYPE, slugify } from '../../identity';
 import type { ExampleEntitySnapshot } from '../dto';
 import { useDeleteExampleEntity, useGetBySlug, useUpdateExampleEntity } from './hooks';
@@ -265,6 +277,7 @@ const TagsField: FC<{ slug: string }> = ({ slug }) => {
         selected={entityTags.data}
         onToggle={handleToggle}
         onCreate={handleCreate}
+        variant="collapsed"
       />
       {errorMessage ? (
         <p role="alert" style={ERROR_STYLE}>
