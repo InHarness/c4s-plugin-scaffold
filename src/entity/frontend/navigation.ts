@@ -39,3 +39,19 @@ export function navigateToEntity(
   if (!prefix) throw new Error(`navigateToEntity: unknown entity type "${type}"`);
   navigate({ to: `${prefix}/$slug`, params: { slug }, replace: opts?.replace });
 }
+
+/**
+ * Navigate to an entity's history screen (`<prefix>/:slug/history`) by `type` + `slug`.
+ * Same `replace` semantics as `navigateToEntity` — pass `{ replace: true }` after a
+ * restore so Back does not return to the stale history view.
+ */
+export function navigateToEntityHistory(
+  navigate: Navigate,
+  type: string,
+  slug: string,
+  opts?: { replace?: boolean },
+): void {
+  const prefix = PATH_PREFIX_BY_TYPE[type];
+  if (!prefix) throw new Error(`navigateToEntityHistory: unknown entity type "${type}"`);
+  navigate({ to: `${prefix}/$slug/history`, params: { slug }, replace: opts?.replace });
+}

@@ -37,12 +37,12 @@ import type { RouteTreeFragment } from '@c4s/plugin-runtime';
 import { useTags } from '@c4s/plugin-runtime';
 import { EXAMPLE_ENTITY_LABEL_PLURAL, EXAMPLE_ENTITY_PATH_PREFIX, EXAMPLE_ENTITY_TYPE } from '../../identity';
 import { useExampleEntityList } from './hooks';
-import { navigateToEntity } from './navigation';
+import { navigateToEntity, navigateToEntityHistory } from './navigation';
 import type { Navigate } from './navigation';
 import { ExampleEntityIcon } from './icon';
 import { ExampleEntityRow } from './render-row';
 import { ExampleEntityCreateDialog } from './create-dialog';
-import { ExampleEntityDetail } from './detail-panel';
+import { ExampleEntityDetail, ExampleEntityHistory } from './detail-panel';
 import type { ExampleEntitySnapshot } from '../dto';
 
 const Pane: FC<{ children: ReactNode }> = ({ children }) => (
@@ -197,6 +197,22 @@ function ExampleEntityListRoute(): JSX.Element {
   );
 }
 
+/** Entity detail's two sibling views — mirrors the host's own Details/History split. */
+type EntityView = 'details' | 'history';
+
+/**
+ * Both the detail route and the history route build the same `onSwitchView`
+ * callback — a real router navigation (not local state) between the two sibling
+ * routes for a given `slug`. Shared here since both route components need the
+ * identical push-vs-`navigateToEntityHistory` branch.
+ */
+function buildOnSwitchView(navigate: Navigate, slug: string) {
+  return (view: EntityView, opts?: { replace?: boolean }) => {
+    if (view === 'history') navigateToEntityHistory(navigate, EXAMPLE_ENTITY_TYPE, slug, opts);
+    else navigateToEntity(navigate, EXAMPLE_ENTITY_TYPE, slug, opts);
+  };
+}
+
 function ExampleEntityDetailRoute(): JSX.Element {
   const navigate = useNavigate() as Navigate;
   const params = useParams({ strict: false }) as { slug?: string };
@@ -213,12 +229,31 @@ function ExampleEntityDetailRoute(): JSX.Element {
         onBackToList={() => navigate({ to: EXAMPLE_ENTITY_PATH_PREFIX })}
         onDeleted={() => navigate({ to: EXAMPLE_ENTITY_PATH_PREFIX })}
         onRenamed={(newSlug) => navigateToEntity(navigate, EXAMPLE_ENTITY_TYPE, newSlug, { replace: true })}
+        onSwitchView={buildOnSwitchView(navigate, slug)}
       />
     </Pane>
   );
 }
 
-/** Build the list + detail routes under the host root route. */
+function ExampleEntityHistoryRoute(): JSX.Element {
+  const navigate = useNavigate() as Navigate;
+  const params = useParams({ strict: false }) as { slug?: string };
+  const slug = String(params.slug ?? '');
+  return (
+    <Pane>
+      <ExampleEntityHistory
+        // `key={slug}` resets `selectedVersion` when navigating directly between
+        // two entities' history URLs.
+        key={slug}
+        slug={slug}
+        onBackToList={() => navigate({ to: EXAMPLE_ENTITY_PATH_PREFIX })}
+        onSwitchView={buildOnSwitchView(navigate, slug)}
+      />
+    </Pane>
+  );
+}
+
+/** Build the list + detail + history routes under the host root route. */
 export const exampleEntityRoutes: RouteTreeFragment = ({ rootRoute }) => {
   const make = createRoute as unknown as (opts: {
     getParentRoute: () => unknown;
@@ -236,5 +271,10 @@ export const exampleEntityRoutes: RouteTreeFragment = ({ rootRoute }) => {
     path: `${EXAMPLE_ENTITY_PATH_PREFIX}/$slug`,
     component: ExampleEntityDetailRoute,
   });
-  return [listRoute, detailRoute];
+  const historyRoute = make({
+    getParentRoute: () => rootRoute,
+    path: `${EXAMPLE_ENTITY_PATH_PREFIX}/$slug/history`,
+    component: ExampleEntityHistoryRoute,
+  });
+  return [listRoute, detailRoute, historyRoute];
 };
