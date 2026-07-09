@@ -81,5 +81,13 @@ npm run dev          # vite build --watch
 
 Expose the built `dist/` to a local host (e.g. a project-local overlay under
 `<project>/.claude4spec/plugins/c4s-plugin-scaffold/`), trust the project's plugins,
-add the entity type to `config.entities`, and verify via `GET /api/_meta/plugins`
-and `GET /api/_meta/entities`.
+add the entity type to `config.entities`, and verify via the **per-project**
+routes — `GET /api/projects/:id/_meta/plugins` (this package's entry should show
+`status: "loaded"` and the response's top-level `trust: true`; the bare
+`GET /api/_meta/plugins` only reports base-tier packages and never reflects an
+overlay/plugin mount, so it's useless here) and
+`GET /api/projects/:id/_meta/entities` (the entity type should appear under
+`active`, not `inactive`/`unknown`).
+
+`docker/plugin-smoke.sh` automates this whole loop against a real, running host in
+Docker — see the `c4s-brief-implementer` skill's "Smoke-test in Docker" step.
