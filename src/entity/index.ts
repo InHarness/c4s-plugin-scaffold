@@ -3,7 +3,14 @@
  *
  * The contribution carries the entity identity (`EntityModuleManifest`) plus the
  * four slots: `serializer` (L9, required), `systemPrompt` (required), and the
- * optional `backend` (L1 migrations + a single imperative `mount(ctx)` for L3/L4).
+ * optional `backend` — declared via the M13 declarative surface
+ * (`service`/`crud`/`routes`), not the `mount` escape hatch: `service` is
+ * instantiated once per `ProjectContext`, and that SAME instance backs DI
+ * (`ctx.registerEntityService`), the host's generic `entity-tools` MCP server
+ * (via `crud`), and the `routes` factory below — the host synthesizes the
+ * mount itself, including binding `routes.router` under `pathPrefix`. No
+ * `backend.mcpServer`: CRUD is all this type has, and CRUD tools belong to
+ * `entity-tools`, never a per-type server.
  * The frontend is a separate entry (`src/frontend.tsx`) registered as a side
  * effect, so it is NOT referenced here (backend and frontend must not pull in each
  * other's deps).
@@ -23,8 +30,9 @@ import { exampleEntitySerializer } from './serializer';
 import { exampleEntitySystemPrompt } from './system-prompt';
 import { exampleEntityMigrations } from './backend/migrations';
 import { ExampleEntityService } from './backend/services';
+import { ExampleEntityCrudAdapter } from './backend/crud-adapter';
+import { exampleEntityCreateSchema, exampleEntityUpdateSchema } from './backend/crud-schemas';
 import { createExampleEntityRouter } from './backend/routes';
-import { createExampleEntityToolsServer } from './backend/mcp-server';
 
 export const exampleEntityEntity: EntityContribution = {
   // ── Identity (EntityModuleManifest) ──
@@ -44,23 +52,23 @@ export const exampleEntityEntity: EntityContribution = {
     // L1 — forward-only idempotent migrations build the derived SQLite index.
     migrations: exampleEntityMigrations,
 
-    /**
-     * Single imperative mount: bind the L4 router under `pathPrefix`, register the
-     * L3 MCP tools server as a FACTORY (not a ready instance — no shared global
-     * state; the host instantiates per context: `ac-mcp-factory`), and expose the
-     * entity service to the host.
-     */
-    mount(ctx: MountContext): void {
-      const service = new ExampleEntityService(ctx.db, ctx);
+    // L2 — instantiated once per ProjectContext; wraps the rich ExampleEntityService.
+    service: (ctx: MountContext) =>
+      new ExampleEntityCrudAdapter(new ExampleEntityService(ctx.db, ctx)),
 
-      ctx.app.use(EXAMPLE_ENTITY_PATH_PREFIX, createExampleEntityRouter(service, ctx));
+    // Declarative contribution to the host's generic entity-tools CRUD server.
+    crud: {
+      createSchema: exampleEntityCreateSchema,
+      updateSchema: exampleEntityUpdateSchema,
+      descriptions: {
+        entity: 'A generic example entity — rename to your own domain type when adapting the scaffold.',
+      },
+    },
 
-      ctx.registerMcpServer(
-        `${EXAMPLE_ENTITY_TYPE}-tools`,
-        () => createExampleEntityToolsServer(service, ctx),
-      );
-
-      ctx.registerEntityService(EXAMPLE_ENTITY_TYPE, service);
+    // L4 — same service instance as `crud`; unwrap `.rich` for the concrete type.
+    routes: {
+      router: (crud: ExampleEntityCrudAdapter, ctx: MountContext) =>
+        createExampleEntityRouter(crud.rich, ctx),
     },
   },
 };
