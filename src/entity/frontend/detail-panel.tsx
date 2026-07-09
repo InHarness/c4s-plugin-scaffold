@@ -16,12 +16,20 @@
  * the entity's live slug across successive renames so a rapid edit-after-rename
  * still PATCHes the right URL before the host remounts the panel via `key={slug}`.
  *
- * Top bar is `DetailPanelShell`'s own breadcrumb + actions slots: `breadcrumb`
- * carries two crumbs (list label → current slug); the list crumb's `onClick` is
- * `onBackToList`, supplied by `routes.tsx`'s route wrapper (the one layer that
- * actually holds `useNavigate` — the `detailPanel` slot itself gets no such
- * capability from the host). `actions` holds a `SegmentedControlTabs`
- * Details/History toggle in place of what used to be Save.
+ * Top bar is `DetailPanelShell`'s own breadcrumb + actions slots, factored into the
+ * local `ExampleEntityDetailShell`: `breadcrumb` carries two crumbs (list label →
+ * current slug); the list crumb's `onClick` is `onBackToList`, supplied by
+ * `routes.tsx`'s route wrapper (the one layer that actually holds `useNavigate` —
+ * the `detailPanel` slot itself gets no such capability from the host). `actions`
+ * holds a `SegmentedControlTabs` Details/History toggle in place of what used to be
+ * Save.
+ *
+ * Details and History are TWO SIBLING ROUTES (`$slug` and `$slug/history`), not an
+ * in-panel tab: the shell's `onSwitchView` is real router navigation (built in
+ * `routes.tsx` from `navigateToEntity`/`navigateToEntityHistory`), not local state —
+ * so History is deep-linkable and Back doesn't land on a stale view. `ExampleEntityDetail`
+ * (Details) and `ExampleEntityHistory` (History) each mount their own route component;
+ * `ExampleEntityDetailShell` is the shared frame between them.
  *
  * Destructive delete is PLUGIN-owned via a local confirm `Dialog` (not the host's
  * `EntityDetailToolbar`, which is dropped here — its single title+delete row can't
@@ -29,7 +37,10 @@
  *
  * History reads through the published `useVersions`/`useVersionDetail`/
  * `useRestoreVersion` (`@c4s/plugin-runtime`) + `VersionHistory` (ui kit) — the
- * write side that FEEDS this data lives in `../backend/services.ts`.
+ * write side that FEEDS this data lives in `../backend/services.ts`. `ExampleEntityHistory`
+ * does not itself fetch the entity (the breadcrumb only ever needs `slug`, already the
+ * route param) — so a deep-link to history for a nonexistent slug won't show the
+ * "Not found" `EmptyState` that the Details route shows; accepted gap for v1.
  *
  * There is NO `onBack`: back is owned by the host `DetailPanelShell` breadcrumb, not a
  * panel prop. Cross-entity/section navigation goes through the host `editorBridge`
@@ -49,7 +60,7 @@
  * `RichTextField` (not `InlineEditField`) backs Description for the same reason.
  */
 
-import type { CSSProperties, FC } from 'react';
+import type { CSSProperties, FC, ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import {
   useAssignTags,
@@ -78,16 +89,23 @@ import { EXAMPLE_ENTITY_LABEL_PLURAL, EXAMPLE_ENTITY_TYPE, slugify } from '../..
 import type { ExampleEntitySnapshot } from '../dto';
 import { useDeleteExampleEntity, useGetBySlug, useUpdateExampleEntity } from './hooks';
 
+/** Entity detail's two sibling views — mirrors the host's own Details/History split. */
+type EntityView = 'details' | 'history';
+
+/** Real router navigation between the Details/History sibling routes — see `routes.tsx`. */
+type SwitchView = (view: EntityView, opts?: { replace?: boolean }) => void;
+
 // Local 1.1.0 props contract: the host injects only `slug`; the callbacks are
-// optional panel→host notifications. `onBackToList` is NOT part of the host
-// contract — it's plugin-internal wiring: `routes.tsx`'s route wrapper already
-// holds `useNavigate` and passes it down so the breadcrumb's list crumb can
-// actually navigate, instead of being a dead label.
+// optional panel→host notifications. `onBackToList`/`onSwitchView` are NOT part of
+// the host contract — they're plugin-internal wiring: `routes.tsx`'s route wrapper
+// already holds `useNavigate` and passes them down so the breadcrumb's list crumb
+// and the Details/History tabs can actually navigate, instead of being dead labels.
 type EntityDetailProps = {
   slug: string;
   onDeleted?: () => void;
   onRenamed?: (newSlug: string) => void;
   onBackToList?: () => void;
+  onSwitchView?: SwitchView;
 };
 
 type Draft = { name: string; description: string };
@@ -331,7 +349,50 @@ const HistoryPane: FC<{
   );
 };
 
-export const ExampleEntityDetail: FC<EntityDetailProps> = ({ slug, onDeleted, onRenamed, onBackToList }) => {
+/**
+ * Shared frame between the Details and History routes — `DetailPanelShell` +
+ * the `SegmentedControlTabs` toggle. `onSwitchView` is real router navigation
+ * (built in `routes.tsx`), so clicking the already-active tab is a guarded no-op
+ * rather than a redundant navigation.
+ */
+const ExampleEntityDetailShell: FC<{
+  slug: string;
+  activeView: EntityView;
+  onBackToList?: () => void;
+  onSwitchView?: SwitchView;
+  children: ReactNode;
+}> = ({ slug, activeView, onBackToList, onSwitchView, children }) => (
+  <DetailPanelShell
+    breadcrumb={[
+      { label: EXAMPLE_ENTITY_LABEL_PLURAL, onClick: onBackToList },
+      { label: slug },
+    ]}
+    actions={
+      <SegmentedControlTabs
+        tabs={[
+          { id: 'details', label: 'Details' },
+          { id: 'history', label: 'History' },
+        ]}
+        active={activeView}
+        onChange={(id) => {
+          const next: EntityView = id === 'history' ? 'history' : 'details';
+          if (next === activeView) return;
+          onSwitchView?.(next);
+        }}
+      />
+    }
+  >
+    {children}
+  </DetailPanelShell>
+);
+
+export const ExampleEntityDetail: FC<EntityDetailProps> = ({
+  slug,
+  onDeleted,
+  onRenamed,
+  onBackToList,
+  onSwitchView,
+}) => {
   const { data: entity } = useGetBySlug(slug);
 
   // Three states — `undefined` = not yet resolved, `null` = resolved-but-absent.
@@ -347,7 +408,38 @@ export const ExampleEntityDetail: FC<EntityDetailProps> = ({ slug, onDeleted, on
       onDeleted={onDeleted}
       onRenamed={onRenamed}
       onBackToList={onBackToList}
+      onSwitchView={onSwitchView}
     />
+  );
+};
+
+/**
+ * History route's own component — no `useGetBySlug` fetch (the breadcrumb only
+ * ever needs `slug`, already the route param), so a deep-link to history for a
+ * nonexistent slug won't show the Details route's "Not found" `EmptyState` —
+ * accepted gap for v1 (see file header).
+ */
+export const ExampleEntityHistory: FC<{
+  slug: string;
+  onBackToList?: () => void;
+  onSwitchView?: SwitchView;
+}> = ({ slug, onBackToList, onSwitchView }) => {
+  const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
+
+  return (
+    <ExampleEntityDetailShell
+      slug={slug}
+      activeView="history"
+      onBackToList={onBackToList}
+      onSwitchView={onSwitchView}
+    >
+      <HistoryPane
+        slug={slug}
+        selectedVersion={selectedVersion}
+        onSelectVersion={setSelectedVersion}
+        onRestored={() => onSwitchView?.('details', { replace: true })}
+      />
+    </ExampleEntityDetailShell>
   );
 };
 
@@ -356,7 +448,8 @@ const ExampleEntityDetailForm: FC<{
   onDeleted?: () => void;
   onRenamed?: (newSlug: string) => void;
   onBackToList?: () => void;
-}> = ({ entity, onDeleted, onRenamed, onBackToList }) => {
+  onSwitchView?: SwitchView;
+}> = ({ entity, onDeleted, onRenamed, onBackToList, onSwitchView }) => {
   const update = useUpdateExampleEntity();
   const del = useDeleteExampleEntity();
 
@@ -366,9 +459,7 @@ const ExampleEntityDetailForm: FC<{
   const [baseline, setBaseline] = useState<Draft>({ name: entity.name, description: entity.description ?? '' });
   const dirty = draft.name !== baseline.name || draft.description !== baseline.description;
 
-  const [view, setView] = useState<'details' | 'history'>('details');
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
 
   const debounceRef = useRef<number | null>(null);
   // The slug to PATCH against — tracks a rename mid-edit, since `entity.slug` is a
@@ -447,89 +538,68 @@ const ExampleEntityDetailForm: FC<{
   };
 
   return (
-    <DetailPanelShell
-      breadcrumb={[
-        { label: EXAMPLE_ENTITY_LABEL_PLURAL, onClick: onBackToList },
-        { label: entity.slug },
-      ]}
-      actions={
-        <SegmentedControlTabs
-          tabs={[
-            { id: 'details', label: 'Details' },
-            { id: 'history', label: 'History' },
-          ]}
-          active={view}
-          onChange={(id) => setView(id === 'history' ? 'history' : 'details')}
-        />
-      }
+    <ExampleEntityDetailShell
+      slug={entity.slug}
+      activeView="details"
+      onBackToList={onBackToList}
+      onSwitchView={onSwitchView}
     >
-      {view === 'history' ? (
-        <HistoryPane
-          slug={entity.slug}
-          selectedVersion={selectedVersion}
-          onSelectVersion={setSelectedVersion}
-          onRestored={() => setView('details')}
+      <div style={HEADER_WRAP_STYLE}>
+        <textarea
+          ref={titleRef}
+          value={draft.name}
+          onChange={(e) => patch({ name: e.target.value })}
+          placeholder="Name"
+          rows={1}
+          style={TITLE_TEXTAREA_STYLE}
         />
-      ) : (
-        <>
-          <div style={HEADER_WRAP_STYLE}>
-            <textarea
-              ref={titleRef}
-              value={draft.name}
-              onChange={(e) => patch({ name: e.target.value })}
-              placeholder="Name"
-              rows={1}
-              style={TITLE_TEXTAREA_STYLE}
-            />
-            <div style={META_ROW_STYLE}>
-              <code>{entity.slug}</code>
-              <span>updated {formatTimestamp(entity.updatedAt)}</span>
-              {update.isPending ? <span>saving…</span> : dirty ? <span>edited</span> : null}
-              <span style={{ flex: 1 }} />
-              <button
-                type="button"
-                onClick={() => setDeleteConfirmOpen(true)}
-                disabled={del.isPending}
-                style={DELETE_BUTTON_STYLE}
-                title="Delete"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-          <div style={CONTENT_WRAP_STYLE}>
-            <div style={{ marginTop: 12 }}>
-              <h3 style={SECTION_HEADING_STYLE}>Tags</h3>
-              <TagsField slug={entity.slug} />
-            </div>
-            <div style={{ marginTop: 32 }}>
-              <h3 style={SECTION_HEADING_STYLE}>Description</h3>
-              <textarea
-                ref={descriptionRef}
-                value={draft.description}
-                onChange={(e) => patch({ description: e.target.value })}
-                placeholder="Optional description"
-                rows={1}
-                style={DESCRIPTION_TEXTAREA_STYLE}
-              />
-            </div>
-            {update.error ? (
-              <p role="alert" style={ERROR_STYLE}>
-                {update.error.message}
-              </p>
-            ) : null}
-            {del.error ? (
-              <p role="alert" style={ERROR_STYLE}>
-                {del.error.message}
-              </p>
-            ) : null}
-            <div style={{ marginTop: 32 }}>
-              <h3 style={SECTION_HEADING_STYLE}>Find references</h3>
-              <ReferencesSection slug={entity.slug} />
-            </div>
-          </div>
-        </>
-      )}
+        <div style={META_ROW_STYLE}>
+          <code>{entity.slug}</code>
+          <span>updated {formatTimestamp(entity.updatedAt)}</span>
+          {update.isPending ? <span>saving…</span> : dirty ? <span>edited</span> : null}
+          <span style={{ flex: 1 }} />
+          <button
+            type="button"
+            onClick={() => setDeleteConfirmOpen(true)}
+            disabled={del.isPending}
+            style={DELETE_BUTTON_STYLE}
+            title="Delete"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+      <div style={CONTENT_WRAP_STYLE}>
+        <div style={{ marginTop: 12 }}>
+          <h3 style={SECTION_HEADING_STYLE}>Tags</h3>
+          <TagsField slug={entity.slug} />
+        </div>
+        <div style={{ marginTop: 32 }}>
+          <h3 style={SECTION_HEADING_STYLE}>Description</h3>
+          <textarea
+            ref={descriptionRef}
+            value={draft.description}
+            onChange={(e) => patch({ description: e.target.value })}
+            placeholder="Optional description"
+            rows={1}
+            style={DESCRIPTION_TEXTAREA_STYLE}
+          />
+        </div>
+        {update.error ? (
+          <p role="alert" style={ERROR_STYLE}>
+            {update.error.message}
+          </p>
+        ) : null}
+        {del.error ? (
+          <p role="alert" style={ERROR_STYLE}>
+            {del.error.message}
+          </p>
+        ) : null}
+        <div style={{ marginTop: 32 }}>
+          <h3 style={SECTION_HEADING_STYLE}>Find references</h3>
+          <ReferencesSection slug={entity.slug} />
+        </div>
+      </div>
       <Dialog
         open={deleteConfirmOpen}
         onClose={() => setDeleteConfirmOpen(false)}
@@ -550,6 +620,6 @@ const ExampleEntityDetailForm: FC<{
           Delete <strong>{draft.name || entity.slug}</strong>? This can’t be undone.
         </p>
       </Dialog>
-    </DetailPanelShell>
+    </ExampleEntityDetailShell>
   );
 };
