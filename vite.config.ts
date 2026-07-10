@@ -40,6 +40,13 @@ const EXTERNAL = [
   'react-dom',
   'react-dom/client',
   'react/jsx-runtime',
+  // The host's import map provides this too (`shared-runtime.ts`); when a
+  // build environment resolves the automatic JSX transform to the dev
+  // variant (e.g. `NODE_ENV=development` set ahead of `vite build`), Rollup
+  // bundles this raw instead of treating it as external — pulling in its
+  // `process.env.NODE_ENV` check, which throws `ReferenceError: process is
+  // not defined` in the browser and crashes the whole plugin frontend import.
+  'react/jsx-dev-runtime',
   '@tiptap/core',
   '@tanstack/react-query',
   // Library-peer: the host provides the single router instance via
