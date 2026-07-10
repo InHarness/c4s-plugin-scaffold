@@ -17,6 +17,20 @@
  * the host passes this exact object to `ctx.registerEntityService`,
  * entity-tools' CRUD registry, and the `routes` factory, which unwraps
  * `.rich` to get back the concrete `ExampleEntityService`.
+ *
+ * `getBySlug` (alongside `get`): the PUBLISHED `EntityCrudService` contract
+ * only requires `get`, but the host's own `project-host.ts#entityExists` —
+ * gating EVERY `/api/entities/:type/:slug/tags|versions` request via
+ * `assertExists` — duck-types the registered service for `getBySlug`
+ * specifically, not `get`. Without this alias, `entityExists` silently
+ * returns `false` for every slug (the `service?.getBySlug ? … : false`
+ * ternary falls straight to `false`), so tags/versions 404 as "not found"
+ * even though `create`/`list`/`get`/`update` all work fine through the
+ * generic CRUD path. Confirmed live (`GET .../tags` → 404 NOT_FOUND) against
+ * an env-runner host built from source. This looks like a host-side gap —
+ * `entityExists` predates the `EntityCrudService` interface and was never
+ * updated to call `.get` — but it's cheap and harmless to satisfy both
+ * names here rather than block on a host fix.
  */
 
 import type { EntityCrudService } from '@c4s/plugin-runtime';
@@ -32,6 +46,11 @@ export class ExampleEntityCrudAdapter implements EntityCrudService {
 
   get(slug: string) {
     return this.rich.getBySlug(slug);
+  }
+
+  /** See class-level doc — satisfies `entityExists`'s duck-typed check. */
+  getBySlug(slug: string) {
+    return this.get(slug);
   }
 
   update(slug: string, data: unknown) {

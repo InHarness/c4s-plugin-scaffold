@@ -55,12 +55,14 @@
  * + breadcrumb/actions), `SegmentedControlTabs` (Details/History), `Dialog` (delete
  * confirm), `VersionHistory` (History pane), `TagPicker` (Tags, `variant="collapsed"`
  * — matches every built-in entity, `ac`/`design-system`/`endpoint`), and
- * `ActionButton`. Description/Tags use the same "section label
- * + full-width content" pattern as the host's own entity pages (`ac`,
- * `design-system`, `endpoint`) — confirmed neither uses `FieldGrid`/`FieldRow` for
- * long-text/list fields — so this file doesn't either; Description is a plain
- * auto-growing `<textarea>` (not `RichTextField`, which shows an unwanted toolbar
- * with no published way to hide it).
+ * `ActionButton`. Tags is a BARE row with no heading — confirmed no built-in
+ * entity (`ac`/`design-system`/`endpoint`/`ui-view`/`dto`) labels it either,
+ * unlike every other field. Description keeps the "section label + full-width
+ * content" pattern the host's own entity pages use (`ac`, `design-system`,
+ * `endpoint`) — confirmed neither uses `FieldGrid`/`FieldRow` for long-text/list
+ * fields — so this file doesn't either; Description is a plain auto-growing
+ * `<textarea>` (not `RichTextField`, which shows an unwanted toolbar with no
+ * published way to hide it).
  */
 
 import type { CSSProperties, FC, ReactNode } from 'react';
@@ -575,7 +577,6 @@ const ExampleEntityDetailForm: FC<{
       </div>
       <div style={CONTENT_WRAP_STYLE}>
         <div style={{ marginTop: 12 }}>
-          <h3 style={SECTION_HEADING_STYLE}>Tags</h3>
           <TagsField slug={entity.slug} />
         </div>
         <div style={{ marginTop: 32 }}>

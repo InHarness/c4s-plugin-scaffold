@@ -40,6 +40,10 @@ const EXTERNAL = [
   'react-dom',
   'react-dom/client',
   'react/jsx-runtime',
+  // Belt-and-suspenders: the host's import map provides this too
+  // (`shared-runtime.ts`), so it's harmless to list even though the
+  // `esbuild.jsxDev: false` below should mean nothing ever imports it.
+  'react/jsx-dev-runtime',
   '@tiptap/core',
   '@tanstack/react-query',
   // Library-peer: the host provides the single router instance via
@@ -54,6 +58,23 @@ const EXTERNAL = [
 ];
 
 export default defineConfig({
+  // Force the STABLE automatic JSX runtime (`jsx`/`jsxs` from
+  // `react/jsx-runtime`) regardless of the ambient build environment. Vite's
+  // own default is `jsxDev: !isProduction`, and `isProduction` can end up
+  // `false` in some build environments even for `vite build` (e.g. a
+  // pre-set `NODE_ENV=development`) — which emits `jsxDEV(...)` calls
+  // against `react/jsx-dev-runtime` instead. That module is EXTERNAL here,
+  // so it resolves through the host's import map at runtime — but the
+  // host's own production React build ships `jsxDEV` as an intentional
+  // no-op stub (`react-jsx-dev-runtime.production.min.js` sets
+  // `jsxDEV = void 0`; dev-mode JSX calls aren't supposed to exist in a
+  // production bundle), so calling it throws `jsxDEV is not a function`
+  // and crashes the whole plugin frontend import. Pinning `jsxDev: false`
+  // here makes the build deterministic no matter what NODE_ENV happens to
+  // be set to when `vite build` runs.
+  esbuild: {
+    jsxDev: false,
+  },
   build: {
     lib: {
       entry: {
