@@ -35,8 +35,8 @@
  * `EntityDetailToolbar`, which is dropped here — its single title+delete row can't
  * produce "large title, then a separate slug/date/delete row").
  *
- * History reads through the published `useVersions`/`useVersionDetail`/
- * `useRestoreVersion` (`@c4s/plugin-runtime`) + `VersionHistory` (ui kit) — the
+ * History reads through the published `useVersions`/`useVersionDiff`/
+ * `useRestoreVersion` (`@c4s/plugin-runtime`) + `VersionHistory`/`DiffView` (ui kit) — the
  * write side that FEEDS this data lives in `../backend/services.ts`. `ExampleEntityHistory`
  * does not itself fetch the entity (the breadcrumb only ever needs `slug`, already the
  * route param) — so a deep-link to history for a nonexistent slug won't show the
@@ -74,13 +74,16 @@ import {
   useRemoveEntityTag,
   useRestoreVersion,
   useTags,
-  useVersionDetail,
+  useVersionDiff,
   useVersions,
+  type VersionDiff,
 } from '@c4s/plugin-runtime';
 import {
   ActionButton,
   Dialog,
   DetailPanelShell,
+  DiffView,
+  type DiffViewLine,
   EmptyState,
   LoadingState,
   ReferencesList,
@@ -208,13 +211,6 @@ const CONTENT_WRAP_STYLE: CSSProperties = {
   padding: '0 56px 56px',
 };
 
-const VERSION_DATA_STYLE: CSSProperties = {
-  marginTop: 16,
-  fontSize: 11,
-  whiteSpace: 'pre-wrap',
-  color: 'var(--c-subtle, #6b7280)',
-};
-
 /**
  * Tags — host-owned, no plugin column. Read via `useEntityTags` (returns tag
  * SLUGS); write via `useAssignTags` (set-całości, takes tag NAMES, auto-creates
@@ -304,12 +300,37 @@ function formatTimestamp(iso: string): string {
 }
 
 /**
+ * `useVersionDiff` returns a semantic delta (`raw.{added,removed,changed}`), not
+ * before/after documents — `DiffView` has no such prop, so this adapts `raw` into
+ * the `hunks` it does take. `raw.changed[key]` is `{ from, to }` (host's
+ * `deepDiffPartition`), not a tuple.
+ */
+function toHunks(diff: VersionDiff): DiffViewLine[] {
+  const raw = diff.raw;
+  if (!raw) return [];
+  const lines: DiffViewLine[] = [];
+  for (const [key, value] of Object.entries(raw.removed ?? {})) {
+    lines.push({ op: 'removed', content: `${key}: ${JSON.stringify(value)}` });
+  }
+  for (const [key, value] of Object.entries(raw.added ?? {})) {
+    lines.push({ op: 'added', content: `${key}: ${JSON.stringify(value)}` });
+  }
+  for (const [key, value] of Object.entries(raw.changed ?? {})) {
+    const { from, to } = value as { from: unknown; to: unknown };
+    lines.push({ op: 'removed', content: `${key}: ${JSON.stringify(from)}` });
+    lines.push({ op: 'added', content: `${key}: ${JSON.stringify(to)}` });
+  }
+  return lines;
+}
+
+/**
  * History pane — read-only list of `VersionListItem`s adapted to the kit's
- * `VersionHistoryItem` shape, plus an optional raw-data preview of the selected
- * version (`useVersionDetail`) and a restore action. Feeds entirely off the
- * published version hooks; whether it ever shows rows depends on the backend
- * actually recording versions (`../backend/services.ts`) — see that file's
- * comments for the current host-side limitation.
+ * `VersionHistoryItem` shape, rendered as a `timeline` with a "Compare to"
+ * action; picking a compare target renders their `useVersionDiff` result
+ * through `DiffView` (via `toHunks`) instead of a raw data dump. Feeds
+ * entirely off the published version hooks; whether it ever shows rows
+ * depends on the backend actually recording versions (`../backend/services.ts`)
+ * — see that file's comments for the current host-side limitation.
  */
 const HistoryPane: FC<{
   slug: string;
@@ -318,8 +339,9 @@ const HistoryPane: FC<{
   onRestored: () => void;
 }> = ({ slug, selectedVersion, onSelectVersion, onRestored }) => {
   const versions = useVersions(EXAMPLE_ENTITY_TYPE, slug);
-  const versionDetail = useVersionDetail(EXAMPLE_ENTITY_TYPE, slug, selectedVersion);
   const restoreVersion = useRestoreVersion();
+  const [compareVersion, setCompareVersion] = useState<number | null>(null);
+  const diffQuery = useVersionDiff(EXAMPLE_ENTITY_TYPE, slug, selectedVersion, compareVersion);
 
   const items: VersionHistoryItem[] = (versions.data ?? []).map((v) => ({
     id: String(v.version),
@@ -342,14 +364,17 @@ const HistoryPane: FC<{
         activeVersion={selectedVersion != null ? String(selectedVersion) : undefined}
         onSelect={(id) => onSelectVersion(Number(id))}
         onRestore={handleRestore}
+        variant="timeline"
+        compareVersion={compareVersion != null ? String(compareVersion) : undefined}
+        onCompare={(id) => setCompareVersion(Number(id))}
       />
       {mutationErrorMessage(restoreVersion.error) ? (
         <p role="alert" style={ERROR_STYLE}>
           {mutationErrorMessage(restoreVersion.error)}
         </p>
       ) : null}
-      {selectedVersion != null && versionDetail.data ? (
-        <pre style={VERSION_DATA_STYLE}>{JSON.stringify(versionDetail.data.data, null, 2)}</pre>
+      {selectedVersion != null && compareVersion != null && diffQuery.data ? (
+        <DiffView hunks={toHunks(diffQuery.data)} title={`v${selectedVersion} → v${compareVersion}`} />
       ) : null}
     </div>
   );
