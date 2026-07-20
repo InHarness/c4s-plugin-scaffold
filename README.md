@@ -26,7 +26,7 @@ L3 MCP / L4 router), `frontend?` (M05).
 | Layer | Where |
 |---|---|
 | L1 — migrations (derived SQLite index; `.json` is source of truth) | `src/entity/backend/migrations.ts` |
-| L3 — MCP tools server (registered as a **factory**) | `src/entity/backend/mcp-server.ts` |
+| L3 — custom, non-CRUD MCP tools server (optional; commented example — this placeholder has none, CRUD alone covers it) | `src/entity/backend/mcp.ts` |
 | L4 — Express router (6 routes under `pathPrefix`) | `src/entity/backend/routes.ts`, `services.ts` |
 | L9 — serializer (views + snapshot/restore/diff) | `src/entity/serializer.ts` |
 | M05 — frontend (render slots, list/detail screens, editor + slash) | `src/frontend.tsx`, `src/entity/frontend/*` |
@@ -52,13 +52,17 @@ Concrete edit targets:
 - **Identity** (`src/identity.ts`): `type`, `table`, `pathPrefix`, labels.
 - **L1** (`migrations.ts`): forward-only, idempotent (`CREATE TABLE IF NOT EXISTS`)
   columns mirroring `ExampleEntitySnapshot`.
-- **L3** (`mcp-server.ts`): registered via the factory
-  `ctx.registerMcpServer('<type>-tools', factory)`.
+- **L3** (`mcp.ts`, optional): only needed for a tool CRUD can't express (aggregate,
+  import, computed rollup) — declare it via `backend.mcpServer`, a
+  `(service, ctx) => McpServerInstance` factory. Plain CRUD stays on the host's
+  `entity-tools`; don't add this file just to expose create/get/update/delete/list.
 - **L4** (`routes.ts`): list returns `*ListItem` (no `data`); `slug = slugify(name)`;
   rename only via `newSlug`; `restore` = idempotent UPSERT; `DELETE` no FK cascade.
 - **L9** (`serializer.ts`): deterministic `snapshot()`, idempotent `restore()`.
-- **System prompt** (`system-prompt.ts`): `countStat.sqlQuery`, `roleNoun`,
-  `mcpToolsLine`.
+- **System prompt** (`system-prompt.ts`): `countStat.sqlQuery`, `roleNoun`. Set
+  `mcpToolsLine` ONLY when `backend.mcpServer` contributes non-CRUD tools — it must
+  describe those tools alone; never duplicate the host's own `entity-tools`
+  description.
 - **M05** (`src/entity/frontend/*`): required `detailPanel` (`useGetBySlug`,
   loading / not-found); `renderChip` handles `entity = null` (broken state);
   list screen composed from the Host UI Kit; keep `@c4s/plugin-runtime/ui`

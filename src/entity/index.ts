@@ -10,7 +10,9 @@
  * (via `crud`), and the `routes` factory below — the host synthesizes the
  * mount itself, including binding `routes.router` under `pathPrefix`. No
  * `backend.mcpServer`: CRUD is all this type has, and CRUD tools belong to
- * `entity-tools`, never a per-type server.
+ * `entity-tools`, never a per-type server. See `./backend/mcp.ts` for a
+ * commented example of the custom-`mcpServer` slot, for when a type needs a
+ * non-CRUD tool.
  * The frontend is a separate entry (`src/frontend.tsx`) registered as a side
  * effect, so it is NOT referenced here (backend and frontend must not pull in each
  * other's deps).
@@ -70,5 +72,9 @@ export const exampleEntityEntity: EntityContribution = {
       router: (crud: ExampleEntityCrudAdapter, ctx: MountContext) =>
         createExampleEntityRouter(crud.rich, ctx),
     },
+
+    // Custom, non-CRUD MCP server — commented out (see `./backend/mcp.ts`); this
+    // placeholder needs no tool beyond CRUD.
+    // mcpServer: exampleEntityToolsCustom,
   },
 };

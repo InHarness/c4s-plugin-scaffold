@@ -1,8 +1,11 @@
 /**
  * System prompt contribution (required — without it the entity type is invisible to
- * the agent). Tells the agent what this entity IS (`roleNoun`), how to count it
- * (`countStat.sqlQuery` against the snake_case index table), and which MCP tools it
- * has (`mcpToolsLine`).
+ * the agent). Tells the agent what this entity IS (`roleNoun`) and how to count it
+ * (`countStat.sqlQuery` against the snake_case index table). `mcpToolsLine` is
+ * OPTIONAL and describes ONLY non-CRUD tools from a custom `backend.mcpServer`
+ * (`ac-mcp-custom-tools-import`) — CRUD tools (host's generic `entity-tools`) are
+ * described by the host itself, never duplicated here. This placeholder has no
+ * custom `mcpServer` (see `./backend/mcp.ts`), so `mcpToolsLine` is omitted.
  */
 
 import type { SystemPromptContribution } from '@c4s/plugin-runtime';
@@ -15,8 +18,11 @@ export const exampleEntitySystemPrompt: SystemPromptContribution = {
     sqlQuery: `SELECT count(*) FROM ${EXAMPLE_ENTITY_TABLE}`,
     label: EXAMPLE_ENTITY_TYPE,
   },
-  mcpToolsLine:
-    'Tools under `example-entity-tools`: create_example_entity, get_example_entity, ' +
-    'update_example_entity, delete_example_entity, list_example_entity.',
+  // Paired example, if `./backend/mcp.ts`'s commented custom `mcpServer` were
+  // uncommented — a matched pair is: the tool PLUS its line here.
+  //
+  // mcpToolsLine:
+  //   'For example-entity aggregates use example_entity_stats (non-CRUD); ' +
+  //   "plain CRUD goes through the host's entity-tools.",
   // TODO: add a narrativeBlock describing your entity's domain rules for the agent.
 };
