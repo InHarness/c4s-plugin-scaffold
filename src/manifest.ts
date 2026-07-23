@@ -23,7 +23,8 @@ import { commandStub } from './capabilities/commands';
 export const manifest: PluginManifest = {
   // KEEP in sync with package.json "name".
   name: 'c4s-plugin-scaffold',
-  version: '0.0.1',
+  // KEEP in sync with package.json "version".
+  version: '0.0.6',
   // Host API range. Host 1.0.0 must satisfy this; `^2.0.0` would NOT
   // (status `incompatible` → PLUGIN_HOST_API_MISMATCH, plugin skipped).
   hostApiVersion: '^1.0.0',
